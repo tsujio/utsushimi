@@ -1,6 +1,37 @@
+# ESP-IDFの生成物（sdkconfig.defaultsとdependencies.lockは管理する）
 build/
-.sdkconfig.old
+managed_components/
 sdkconfig
+.sdkconfig.old
+sdkconfig.old
+
+# エディター・OSのローカル設定
 .vscode/
 .idea/
 .DS_Store
+
+# ローカルの認証情報・ツール状態
+.aws/
+.ssh/
+.codex/
+.agents/
+.env
+.env.*
+!.env.example
+!.env.*.example
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ログ・メモリダンプには端末情報やメモリ内容が含まれ得る
+*.log
+*.core
+core.*
+coredump*
+
+# Pythonの生成物
+__pycache__/
+*.py[cod]
+.venv/
