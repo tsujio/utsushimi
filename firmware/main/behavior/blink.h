@@ -2,16 +2,15 @@
 #include <cstdint>
 
 namespace utsushimi {
-// 時刻と乱数を入力するだけの非ブロッキングな瞬き状態機械。
+// Actionのみを担当。意思決定・身体状態・乱数には依存しない。
 class Blink {
 public:
-    Blink(uint64_t now_ms, uint32_t random);
-    float update(uint64_t now_ms, uint32_t random);
+    void start(uint64_t now_us, uint64_t duration_us, bool double_blink);
+    bool active(uint64_t now_us) const;
+    float openness(uint64_t now_us) const;
+    uint64_t end_us() const { return end_us_; }
 private:
-    static uint64_t interval(uint32_t random);
-    uint64_t next_ms_;
-    uint64_t start_ms_ = 0;
-    bool active_ = false;
+    uint64_t start_us_ = 0, end_us_ = 0, duration_us_ = 150000;
     bool double_ = false;
 };
 }  // namespace utsushimi

@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <cstring>
 #include "board/amoled.h"
-#include "behavior/blink.h"
+#include "behavior/body_behavior.h"
 #include "display/eye_renderer.h"
 #include "esp_check.h"
 #include "esp_flash.h"
@@ -79,17 +79,35 @@ extern "C" void app_main(void) {
     xQueueOverwrite(expressions, &eyes);
     ESP_ERROR_CHECK(xTaskCreate(display_task, "eyes_display", 4096, nullptr, 4, nullptr) == pdPASS
                         ? ESP_OK : ESP_ERR_NO_MEM);
-    utsushimi::Blink blink(esp_timer_get_time() / 1000, esp_random());
+    // 9つの調整項目はここで上書きする。単位は秒。
+    const utsushimi::BehaviorParameters parameters{};
+    utsushimi::BodyBehavior body({[](void *) { return esp_random(); }, nullptr}, parameters);
+    int64_t last_update = esp_timer_get_time();
     TickType_t tick = xTaskGetTickCount();
     float previous = 1;
+    uint64_t previous_actions = 0;
     for (;;) {
-        const float openness = blink.update(esp_timer_get_time() / 1000, esp_random());
+        const int64_t now = esp_timer_get_time();
+        if (body.advance(static_cast<uint64_t>(now - last_update)))
+            ESP_LOGW("body", "Update delayed; discarded elapsed time beyond 100ms");
+        last_update = now;
+        if (body.action_count() != previous_actions) {
+            ESP_LOGI("body", "actions=%llu doubles=%llu model_start_us=%llu dryness=%.3f valence=%.3f",
+                     static_cast<unsigned long long>(body.action_count()),
+                     static_cast<unsigned long long>(body.double_count()),
+                     static_cast<unsigned long long>(body.last_start_us()),
+                     static_cast<double>(body.state().eye_dryness),
+                     static_cast<double>(body.state().valence));
+            previous_actions = body.action_count();
+        }
+        // 将来のタッチイベントはこのタスクでbody.input()へ渡す。
+        const float openness = body.openness();
         if (openness != previous) {
             eyes.openness = openness;
             // 古いフレームを溜めず最新状態のみ渡す。表示DMAの待機から独立。
             xQueueOverwrite(expressions, &eyes);
             previous = openness;
         }
-        vTaskDelayUntil(&tick, pdMS_TO_TICKS(10));
+        vTaskDelayUntil(&tick, std::max<TickType_t>(1, pdMS_TO_TICKS(10)));
     }
 }

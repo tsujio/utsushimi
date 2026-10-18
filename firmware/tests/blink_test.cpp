@@ -1,30 +1,30 @@
 #include "behavior/blink.h"
 #include <cassert>
-using utsushimi::Blink;
+#include <cmath>
+#include <initializer_list>
+using namespace utsushimi;
 int main() {
-    Blink single(0, 0); // 2000ms後に開始
-    assert(single.update(1999, 1) == 1);
-    assert(single.update(2000, 1) == 1); // 1は単発を選択
-    assert(single.update(2035, 1) > 0 && single.update(2035, 1) < 1);
-    assert(single.update(2070, 1) == 0);
-    assert(single.update(2109, 1) == 0);
-    assert(single.update(2185, 1) > 0 && single.update(2185, 1) < 1);
-    assert(single.update(2260, 4500) == 1); // 次は6500ms後
-    assert(single.update(8759, 1) == 1);
-    single.update(8760, 1);
-    assert(single.update(8830, 1) == 0);
-
-    Blink twice(0, 0);
-    twice.update(2000, 0); // 0は二連を選択
-    assert(twice.update(2070, 1) == 0);
-    assert(twice.update(2260, 1) == 1);
-    assert(twice.update(2359, 1) == 1);
-    assert(twice.update(2430, 1) == 0);
-    assert(twice.update(2620, 1) == 1);
-    // 32bitミリ秒を越えても正常に動く。長時間スケジュール遅延後は開眼復帰。
-    const uint64_t late = uint64_t{1} << 33;
-    Blink long_running(late, 0);
-    long_running.update(late + 2000, 1);
-    assert(long_running.update(late + 2070, 1) == 0);
-    assert(long_running.update(late + 20000, 1) == 1);
+    Blink blink;
+    assert(!blink.active(0) && blink.openness(0) == 1);
+    const uint64_t start = 9000000000000ULL; // 長時間稼働後の64bit時刻。
+    for (bool twice : {false, true}) {
+        blink.start(start, 150000, twice);
+        assert(blink.active(start) && blink.openness(start) == 1);
+        assert(blink.openness(start + 20000) < 1);
+        assert(blink.openness(start + 45000) == 0);
+        assert(blink.openness(start + 74000) == 0);
+        assert(blink.openness(start + 100000) > 0);
+        assert(blink.openness(start + 150000) == 1);
+        assert(blink.end_us() == start + (twice ? 400000 : 150000));
+        if (twice) {
+            assert(blink.active(start + 249999));
+            assert(blink.openness(start + 249999) == 1);
+            assert(blink.openness(start + 270000) < 1);
+            assert(blink.openness(start + 295000) == 0);
+        }
+        assert(!blink.active(blink.end_us()));
+        assert(blink.openness(blink.end_us()) == 1);
+        for (uint64_t t = start; t <= blink.end_us(); t += 1000)
+            assert(blink.openness(t) >= 0 && blink.openness(t) <= 1);
+    }
 }
