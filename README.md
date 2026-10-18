@@ -14,6 +14,7 @@ UTSUSHIMIは、特定の身体に依存しない知性 **KOKORO** に物理的�
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | AI実装エージェント向けの作業ルール |
 | [アーキテクチャ](docs/architecture.md) | KOKOROと身体の責務、内部処理、イベント、目の設計、ソフトウェア候補 |
+| [Step 1 身体反応モデル](docs/step1-body-behavior.md) | 乾燥度・快不快・欲求・瞬き意思決定・表情の合意仕様と未決定事項 |
 | [ハードウェア](docs/hardware.md) | 基板仕様、GPIO、タッチ試作、電源、外部デバイス |
 | [ロードマップ](docs/roadmap.md) | 開発ステップと完了条件 |
 | [ファームウェア](firmware/main/README.md) | ファームウェア実装の入口 |
