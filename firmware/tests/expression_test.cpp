@@ -91,25 +91,30 @@ void animation() {
         BehaviorParameters params; params.squint_strength = strength;
         // 固定乱数0で実際の瞬き行動を発生させる。
         BodyBehavior body({[](void *) -> uint32_t { return 0; }, nullptr}, params);
-        for (int i = 0; i < 3; ++i) body.input(BodyEvent::petting_detected);
+        BodyBehavior reference({never, nullptr}, params);
+        for (int i = 0; i < 3; ++i) {
+            body.input(BodyEvent::petting_detected);
+            reference.input(BodyEvent::petting_detected);
+        }
         bool closed = false, reopened = false, waiting = false;
-        float closure = 0;
         for (int i = 0; i < 800; ++i) {
             body.advance(10000);
+            reference.advance(10000);
+            // 閉眼中も表情は独立して追従し、再開時はその時点の表情に戻る。
+            assert(body.expression_openness() == reference.expression_openness());
             const auto s = eyes(body);
             assert(s.upper_lid >= 0 && s.upper_lid <= strength);
             assert(s.upper_lid == s.lower_lid);
             if (s.openness == 0) {
                 closed = true;
                 waiting = true;
-                closure = s.upper_lid;
                 for (int y = 138; y <= 312; ++y) for (int x = 68; x <= 242; ++x)
                     assert(eye_pixel(x,y,s) == 0);
             } else if (waiting && s.openness == 1) {
                 reopened = true;
                 waiting = false;
                 assert(s.upper_lid > 0);
-                assert(std::abs(s.upper_lid - closure) < 0.02f);
+                assert(s.upper_lid == eyes(reference).upper_lid);
             }
         }
         assert(closed && reopened);

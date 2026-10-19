@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "app_main.cpp" "board/amoled.c" "display/eye_renderer.cpp" "behavior/blink.cpp" "behavior/body_behavior.cpp"
+    SRCS "app_main.cpp" "board/amoled.c" "display/eye_renderer.cpp" "behavior/blink.cpp" "behavior/body_behavior.cpp" "behavior/automatic_blink.cpp"
     INCLUDE_DIRS "."
     REQUIRES esp_lcd esp_driver_spi esp_driver_i2c esp_psram spi_flash esp_timer esp_hw_support)
 target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_17)

@@ -79,8 +79,9 @@ extern "C" void app_main(void) {
     xQueueOverwrite(expressions, &eyes);
     ESP_ERROR_CHECK(xTaskCreate(display_task, "eyes_display", 4096, nullptr, 4, nullptr) == pdPASS
                         ? ESP_OK : ESP_ERR_NO_MEM);
-    // 9つの調整項目はここで上書きする。単位は秒。
+    // 7つの調整項目はここで上書きする。単位は秒。
     const utsushimi::BehaviorParameters parameters{};
+    ESP_ERROR_CHECK(parameters.valid() ? ESP_OK : ESP_ERR_INVALID_ARG);
     utsushimi::BodyBehavior body({[](void *) { return esp_random(); }, nullptr}, parameters);
     int64_t last_update = esp_timer_get_time();
     TickType_t tick = xTaskGetTickCount();
@@ -92,11 +93,10 @@ extern "C" void app_main(void) {
             ESP_LOGW("body", "Update delayed; discarded elapsed time beyond 100ms");
         last_update = now;
         if (body.action_count() != previous_actions) {
-            ESP_LOGI("body", "actions=%llu doubles=%llu model_start_us=%llu dryness=%.3f valence=%.3f",
+            ESP_LOGI("body", "actions=%llu doubles=%llu model_start_us=%llu valence=%.3f",
                      static_cast<unsigned long long>(body.action_count()),
                      static_cast<unsigned long long>(body.double_count()),
                      static_cast<unsigned long long>(body.last_start_us()),
-                     static_cast<double>(body.state().eye_dryness),
                      static_cast<double>(body.state().valence));
             previous_actions = body.action_count();
         }

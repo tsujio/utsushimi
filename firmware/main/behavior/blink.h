@@ -2,7 +2,7 @@
 #include <cstdint>
 
 namespace utsushimi {
-// Actionのみを担当。意思決定・身体状態・乱数には依存しない。
+// 選択済みの瞬きのアニメーション。身体状態・発生判定・乱数には依存しない。
 class Blink {
 public:
     void start(uint64_t now_us, uint64_t duration_us, bool double_blink);
