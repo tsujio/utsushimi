@@ -57,7 +57,7 @@ void unit_tests() {
     assert(b.state().valence == 1); // 保持自体を撫でとしない。
     advance(b, 1000000);
     assert(b.expression_openness() < 0.6f);
-    near(b.openness(), b.expression_openness());
+    near(b.blink_openness(), 1);
     advance(b, 600000000);
     assert(b.state().valence >= -1 && b.state().eye_dryness <= 1);
     near(b.expression_openness(), 1);
@@ -122,7 +122,7 @@ void actions() {
             b.advance(10000);
             near(b.state().eye_dryness, expected.eye_dryness); // 2回目も回復しない。
             assert(b.action_count() == 1);
-            near(b.openness(), b.expression_openness() * b.blink_openness());
+            assert(b.expression_openness() >= 0.5f && b.expression_openness() <= 1);
             if (twice && b.now_us() == start + 300000) assert(b.blink_openness() == 0);
         }
         assert(rng.calls == calls); // 行動中・終了後1秒未満は判定しない。
@@ -159,7 +159,8 @@ void actions() {
         advance(a, 1000000, 5000); advance(b, 1000000, 37000); advance(c, 1000000, 20000);
         assert(a.state().eye_dryness == b.state().eye_dryness);
         assert(a.state().valence == b.state().valence);
-        assert(a.openness() == b.openness());
+        assert(a.expression_openness() == b.expression_openness());
+        assert(a.blink_openness() == b.blink_openness());
         assert(a.last_start_us() == b.last_start_us());
     }
     assert(r1.state == r2.state && a.last_start_us() != c.last_start_us());

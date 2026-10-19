@@ -84,7 +84,7 @@ extern "C" void app_main(void) {
     utsushimi::BodyBehavior body({[](void *) { return esp_random(); }, nullptr}, parameters);
     int64_t last_update = esp_timer_get_time();
     TickType_t tick = xTaskGetTickCount();
-    float previous = 1;
+    utsushimi::EyeState previous;
     uint64_t previous_actions = 0;
     for (;;) {
         const int64_t now = esp_timer_get_time();
@@ -101,12 +101,17 @@ extern "C" void app_main(void) {
             previous_actions = body.action_count();
         }
         // 将来のタッチイベントはこのタスクでbody.input()へ渡す。
-        const float openness = body.openness();
-        if (openness != previous) {
-            eyes.openness = openness;
+        utsushimi::EyeState pose = eyes;
+        pose.openness = body.blink_openness();
+        pose.upper_lid = pose.lower_lid = 1 - body.expression_openness();
+        if (pose.openness != previous.openness || pose.upper_lid != previous.upper_lid ||
+            pose.lower_lid != previous.lower_lid) {
+            eyes.openness = pose.openness;
+            eyes.upper_lid = pose.upper_lid;
+            eyes.lower_lid = pose.lower_lid;
             // 古いフレームを溜めず最新状態のみ渡す。表示DMAの待機から独立。
             xQueueOverwrite(expressions, &eyes);
-            previous = openness;
+            previous = pose;
         }
         vTaskDelayUntil(&tick, std::max<TickType_t>(1, pdMS_TO_TICKS(10)));
     }

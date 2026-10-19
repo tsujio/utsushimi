@@ -42,7 +42,6 @@ public:
     const BehaviorParameters &parameters() const { return params_; }
     float expression_openness() const { return expression_; }
     float blink_openness() const { return blink_.openness(now_us_); }
-    float openness() const { return expression_ * blink_openness(); }
     uint64_t now_us() const { return now_us_; }
     uint64_t action_count() const { return action_count_; }
     uint64_t double_count() const { return double_count_; }

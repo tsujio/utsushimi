@@ -7,8 +7,10 @@ constexpr int kFaceHeight = 450;
 struct EyeState {
     float gaze_x = 0.0f;       // -1..1。今回は正面で固定。
     float gaze_y = 0.0f;       // -1..1
-    float openness = 1.0f;     // 0..1
+    float openness = 1.0f;     // 瞬きの開眼率、0..1
     float pupil_size = 0.40f;  // 白目半径に対する比率、0.2..0.6
+    float upper_lid = 0.0f;   // 快のまぶた形状。0で従来と画素一致。
+    float lower_lid = 0.0f;   // 形状は0..0.5で連続変化、それ以上は飽和。
 };
 // ハードウェアに依存しないRGB565。白目は半径86の円、瞳は黒い円。
 uint16_t eye_pixel(int x, int y, const EyeState &state);
