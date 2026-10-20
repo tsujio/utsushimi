@@ -14,7 +14,7 @@ struct EyeState {
 };
 // ハードウェアに依存しないRGB565。白目は半径86の円、瞳は黒い円。
 uint16_t eye_pixel(int x, int y, const EyeState &state);
-// 両目を含むネイティブ座標の矩形。画面への90度回転もここで行う。
+// 両目を含むネイティブ座標の矩形。論理座標からネイティブ座標へ反時計回り90度回転する。
 constexpr int kFrameX = 132, kFrameY = 62;
 constexpr int kFrameWidth = 186, kFrameHeight = 476;
 constexpr int kFramePixels = kFrameWidth * kFrameHeight;

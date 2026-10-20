@@ -67,7 +67,7 @@ make test
 
 基板定義・初期化コマンドは、Waveshare公式リポジトリのコミット `0eaf16cfae3440d445f2b6caa71e94065094551f` の `components/main_config/main_config.h` と `components/lcd_bsp/display_bsp.c` を根拠にしています。[公式ソース](https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.41-V2/tree/0eaf16cfae3440d445f2b6caa71e94065094551f/02_Example/ESP-IDF/09_LVGL_V9_Test)。
 
-- ネイティブ座標450×600に、論理座標600×450をソフトウェアで90度回転して送ります。パネルを横向きに置いてください。取り付け方向によっては180度の調整が必要です。
+- ネイティブ座標450×600に、論理座標600×450をソフトウェアで反時計回り90度回転して送ります（native_x = logical_y、native_y = 599 − logical_x）。パネルを横向きに置いてください。実機の取り付け方向との一致は確認してください。
 - 公式のQSPI 40MHz、RGB565、コマンド表、EXIO0のリセット順序を維持します。画面タッチ用EXIO1は操作しません。
 - 初期化時の輝度を0にして、背景と目を描いた後に約50%へ上げます。
 - RGB565は上位バイトから送信します。内部DMAバッファは両目を含む186×476画素の177,072バイトで、転送完了後に再利用します。初期化失敗・転送タイムアウトはログを伴って停止します。

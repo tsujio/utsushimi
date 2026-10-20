@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
         assert(frame.front() == 0x1234 && frame.back() == 0x1234);
         for (int row = 0; row < kFrameHeight; ++row) {
             for (int col = 0; col < kFrameWidth; ++col) {
-                const uint16_t p = eye_pixel(kFrameY + row, kFaceHeight - 1 - (kFrameX + col), state);
+                const uint16_t p = eye_pixel(kFaceWidth - 1 - (kFrameY + row), kFrameX + col, state);
                 const uint16_t wire = (p << 8) | (p >> 8);
                 assert(frame[1 + row * kFrameWidth + col] == wire);
             }

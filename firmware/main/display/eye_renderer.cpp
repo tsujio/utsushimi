@@ -59,7 +59,7 @@ void render_eye_frame(uint16_t *pixels, const EyeState &s) {
     const bool shaped = upper > 0 || lower > 0;
     float eye_y2[kFrameWidth], pupil_y2[kFrameWidth], eye_y[kFrameWidth];
     for (int col = 0; col < kFrameWidth; ++col) {
-        const float dy = kFaceHeight - 1 - (kFrameX + col) - 225.0f;
+        const float dy = kFrameX + col - 225.0f;
         const float ey = dy / open;
         const float py = dy + 3 - gaze_y;
         if (shaped) eye_y[col] = ey;
@@ -67,7 +67,7 @@ void render_eye_frame(uint16_t *pixels, const EyeState &s) {
         pupil_y2[col] = py * py;
     }
     for (int row = 0; row < kFrameHeight; ++row) {
-        const int x = kFrameY + row;
+        const int x = kFaceWidth - 1 - (kFrameY + row);
         const bool left = x < kFaceWidth / 2;
         const float dx = x - (left ? 155.0f : 445.0f);
         if (std::abs(dx) >= 87) continue;

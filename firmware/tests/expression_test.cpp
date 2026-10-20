@@ -20,7 +20,7 @@ void compare_frame(const EyeState &state) {
     assert(frame.front() == 0x1234 && frame.back() == 0x1234);
     for (int row = 0; row < kFrameHeight; ++row)
         for (int col = 0; col < kFrameWidth; ++col) {
-            const auto p = eye_pixel(kFrameY + row, kFaceHeight - 1 - (kFrameX + col), state);
+            const auto p = eye_pixel(kFaceWidth - 1 - (kFrameY + row), kFrameX + col, state);
             assert(frame[1 + row*kFrameWidth+col] == static_cast<uint16_t>((p << 8) | (p >> 8)));
         }
 }
