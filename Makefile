@@ -31,4 +31,5 @@ test:
 	$(CXX) -std=c++17 -Wall -Wextra -Werror -I"$(FIRMWARE)/main" "$(FIRMWARE)/main/behavior/blink.cpp" "$(FIRMWARE)/tests/blink_test.cpp" -o "$$tmpdir/blink"; \
 	$(CXX) -O2 -std=c++17 -Wall -Wextra -Werror -I"$(FIRMWARE)/main" "$(FIRMWARE)/main/behavior/blink.cpp" "$(FIRMWARE)/main/behavior/body_behavior.cpp" "$(FIRMWARE)/main/behavior/automatic_blink.cpp" "$(FIRMWARE)/tests/body_behavior_test.cpp" -o "$$tmpdir/body"; \
 	$(CXX) -O2 -std=c++17 -Wall -Wextra -Werror -I"$(FIRMWARE)/main" "$(FIRMWARE)/main/behavior/blink.cpp" "$(FIRMWARE)/main/behavior/body_behavior.cpp" "$(FIRMWARE)/main/behavior/automatic_blink.cpp" "$(FIRMWARE)/main/display/eye_renderer.cpp" "$(FIRMWARE)/tests/expression_test.cpp" -o "$$tmpdir/expression"; \
-	"$$tmpdir/expression"; "$$tmpdir/eyes"; "$$tmpdir/blink"; "$$tmpdir/body"; printf '%s\n' '描画・瞬き・身体反応テスト成功'
+	$(CXX) -std=c++17 -Wall -Wextra -Werror -I"$(FIRMWARE)/main" "$(FIRMWARE)/main/touch/contact_detector.cpp" "$(FIRMWARE)/tests/contact_detector_test.cpp" -o "$$tmpdir/contact"; \
+	"$$tmpdir/contact"; "$$tmpdir/expression"; "$$tmpdir/eyes"; "$$tmpdir/blink"; "$$tmpdir/body"; printf '%s\n' '描画・瞬き・身体反応テスト成功'

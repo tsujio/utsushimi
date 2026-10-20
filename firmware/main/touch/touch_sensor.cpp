@@ -1,4 +1,5 @@
 #include "touch_sensor.h"
+#include "contact_detector.h"
 #include "driver/touch_sens.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -10,7 +11,8 @@ namespace utsushimi {
 namespace {
 constexpr const char *kTag = "touch_a";
 constexpr int kChannel = TOUCH_PAD_GPIO1_CHANNEL;
-constexpr int kPeriodMs = 250;
+constexpr int kPeriodMs = 50;
+constexpr int kLogPeriodMs = 250;
 constexpr int kScanTimeoutMs = 50;
 static_assert(TOUCH_PAD_NUM1_GPIO_NUM == 1 && SOC_TOUCH_SENSOR_VERSION == 2);
 
@@ -57,8 +59,10 @@ void touch_task(void *) {
         vTaskDelete(nullptr);
         return;
     }
-    ESP_LOGI(kTag, "GPIO1 TOUCH1 (J8 pin 3), raw sampling every %dms; no touch classification", kPeriodMs);
+    ESP_LOGI(kTag, "GPIO1 TOUCH1 (J8 pin 3), raw sampling every %dms; keep electrode untouched during calibration", kPeriodMs);
     unsigned warmup = 3;
+    ContactDetector detector;
+    uint64_t last_log_ms = 0;
     TickType_t tick = xTaskGetTickCount();
     for (;;) {
         // 完了した新規測定だけを読む。待機はこのタスク内で最大50ms+RTOS tick。
@@ -68,14 +72,30 @@ void touch_task(void *) {
             if (check(touch_channel_read_data(sensor.channel, TOUCH_CHAN_DATA_TYPE_RAW, &raw), "read_raw")) {
                 if (warmup) {
                     --warmup;
-                    if (!warmup) ESP_LOGI(kTag, "Warmup complete; raw observation ready");
+                    if (!warmup) ESP_LOGI(kTag, "Warmup complete; keep untouched for calibration (~2s)");
                 } else {
-                    ESP_LOGI(kTag, "elapsed_ms=%lld raw=%lu status=ok",
-                             static_cast<long long>(esp_timer_get_time() / 1000),
-                             static_cast<unsigned long>(raw));
+                    const uint64_t now = esp_timer_get_time() / 1000;
+                    const auto result = detector.update(raw, now);
+                    const char *event = nullptr;
+                    switch (result) {
+                    case ContactUpdate::calibrated: event = "calibrated"; break;
+                    case ContactUpdate::calibration_rejected:
+                        ESP_LOGW(kTag, "Calibration unstable/zero; keep untouched, retrying"); break;
+                    case ContactUpdate::touch_started: event = "touch_started"; break;
+                    case ContactUpdate::touch_ended: event = "touch_ended"; break;
+                    case ContactUpdate::none: break;
+                    }
+                    if (event || now - last_log_ms >= kLogPeriodMs) {
+                        ESP_LOGI(kTag, "elapsed_ms=%llu raw=%lu baseline=%.1f delta=%.1f state=%s event=%s",
+                                 static_cast<unsigned long long>(now), static_cast<unsigned long>(raw),
+                                 detector.baseline(), detector.ready() ? detector.delta(raw) : 0,
+                                 !detector.ready() ? "calibrating" : detector.touching() ? "touched" : "idle",
+                                 event ? event : "none");
+                        last_log_ms = now;
+                    }
                 }
-            }
-        }
+            } else detector.missing();
+        } else detector.missing();
         // 遅延時に過去の測定を追いかけて連続実行しない。
         if (xTaskDelayUntil(&tick, pdMS_TO_TICKS(kPeriodMs)) == pdFALSE) tick = xTaskGetTickCount();
     }
