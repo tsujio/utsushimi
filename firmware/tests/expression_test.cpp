@@ -76,6 +76,20 @@ void geometry() {
         max_thickness = std::max(max_thickness, thickness);
     }
     assert(max_thickness - min_thickness <= 1);
+    // 両目の外側だけが上がる。上下の幅と鏡像対称を維持する。
+    auto span = [&](int x) {
+        int first = -1, last = -1;
+        for (int y=138;y<=312;++y) if (eye_pixel(x,y,parallel)) {
+            if(first<0) first=y;
+            last=y;
+        }
+        return std::pair<int,int>{first,last};
+    };
+    const auto outer_left=span(95), inner_left=span(215);
+    const auto outer_right=span(505), inner_right=span(385);
+    assert(outer_left==outer_right && inner_left==inner_right);
+    assert(inner_left.first-outer_left.first>=4 && inner_left.first-outer_left.first<=8);
+    assert(std::abs((outer_left.second-outer_left.first)-(inner_left.second-inner_left.first))<=1);
     EyeState bad; bad.upper_lid = std::numeric_limits<float>::quiet_NaN();
     bad.lower_lid = std::numeric_limits<float>::infinity(); compare_frame(bad);
 }

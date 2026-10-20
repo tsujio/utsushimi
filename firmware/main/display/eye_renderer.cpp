@@ -8,12 +8,19 @@ float bound(float x, float lo, float hi) {
     return std::isfinite(x) ? std::clamp(x, lo, hi) : lo;
 }
 // 画像座標は下向き。上まぶたは少し下げ、下まぶたの中央を持ち上げる。
-void lid_edges(float dx2, float upper, float lower, float &top, float &bottom) {
+void lid_edges(float dx, bool left, float upper, float lower, float &top, float &bottom) {
+    const float dx2 = dx * dx;
     const float scale = 1 - 0.4f * upper;
     const float curve = (87 - std::sqrt(std::max(0.0f, 87 * 87 - dx2))) * scale;
     // 同じ楕円弧を上下へ移動する。中央だけ薄く、両端が厚くなる形を避ける。
     top = -87 * scale + curve;
     bottom = 87 - lower * 3.0f * 86 + curve;
+    // 目尻側だけをなだらかに持ち上げる。通常時・目頭・中央は動かさない。
+    const float outward = std::clamp((left ? -dx : dx) / 87.0f, 0.0f, 1.0f);
+    constexpr float kOuterLiftPixels = 8.0f; // 実機で印象を調整する描画値
+    const float lift = kOuterLiftPixels * (lower / 0.5f) * outward * outward * (3 - 2 * outward);
+    top -= lift;
+    bottom -= lift;
 }
 float lid_coverage(float y, float top, float bottom) {
     return std::clamp(std::min(y - top + 0.5f, bottom - y + 0.5f), 0.0f, 1.0f);
@@ -35,7 +42,7 @@ uint16_t eye_pixel(int x, int y, const EyeState &s) {
     const float eye_distance = std::sqrt(dx * dx + ey * ey);
     float white = std::clamp(86.5f - eye_distance, 0.0f, 1.0f);
     float top, bottom;
-    lid_edges(dx * dx, bound(s.upper_lid, 0, 0.5f), bound(s.lower_lid, 0, 0.5f), top, bottom);
+    lid_edges(dx, x < kFaceWidth / 2, bound(s.upper_lid, 0, 0.5f), bound(s.lower_lid, 0, 0.5f), top, bottom);
     white = std::min(white, lid_coverage(ey, top, bottom));
     if (white == 0) return 0;
     // ほんの少し内向きの瞳で柔らかい表情にする。
@@ -73,7 +80,7 @@ void render_eye_frame(uint16_t *pixels, const EyeState &s) {
         if (std::abs(dx) >= 87) continue;
         const float dx2 = dx * dx;
         float top = -87, bottom = 87;
-        if (shaped) lid_edges(dx2, upper, lower, top, bottom);
+        if (shaped) lid_edges(dx, left, upper, lower, top, bottom);
         const float px = dx - (left ? 5.0f : -5.0f) - gaze_x;
         const float px2 = px * px;
         for (int col = 0; col < kFrameWidth; ++col) {
