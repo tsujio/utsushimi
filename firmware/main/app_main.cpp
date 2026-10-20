@@ -3,6 +3,7 @@
 #include "board/amoled.h"
 #include "behavior/body_behavior.h"
 #include "display/eye_renderer.h"
+#include "touch/touch_sensor.h"
 #include "esp_check.h"
 #include "esp_flash.h"
 #include "esp_heap_caps.h"
@@ -79,6 +80,7 @@ extern "C" void app_main(void) {
     xQueueOverwrite(expressions, &eyes);
     ESP_ERROR_CHECK(xTaskCreate(display_task, "eyes_display", 4096, nullptr, 4, nullptr) == pdPASS
                         ? ESP_OK : ESP_ERR_NO_MEM);
+    utsushimi::start_touch_diagnostics();
     // 7つの調整項目はここで上書きする。単位は秒。
     const utsushimi::BehaviorParameters parameters{};
     ESP_ERROR_CHECK(parameters.valid() ? ESP_OK : ESP_ERR_INVALID_ARG);
