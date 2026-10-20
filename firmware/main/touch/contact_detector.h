@@ -11,6 +11,12 @@ struct ContactSettings {
     static constexpr double end_delta = 600;
     static constexpr uint64_t debounce_ms = 100;
     static constexpr uint64_t max_gap_ms = 150;
+    // 非接触の小さな変動だけを追従。すべて実機調整用の暫定値。
+    static constexpr uint64_t baseline_settle_ms = 2000;
+    static constexpr double baseline_gate = 400;
+    static constexpr uint32_t baseline_step_limit = 100;
+    static constexpr double baseline_tau_ms = 20000;
+    static constexpr double baseline_max_per_second = 10;
 };
 enum class ContactUpdate { none, calibrated, calibration_rejected, touch_started, touch_ended };
 // ハードウェア非依存。単調な実測時刻で更新し、測定失敗はmissing()へ渡す。
@@ -28,5 +34,8 @@ private:
     unsigned samples_ = 0;
     uint32_t minimum_ = UINT32_MAX, maximum_ = 0;
     double baseline_ = 0;
+    bool baseline_stable_ = false;
+    uint64_t baseline_stable_since_ = 0;
+    uint32_t previous_raw_ = 0;
 };
 }

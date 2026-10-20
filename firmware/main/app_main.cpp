@@ -89,6 +89,7 @@ extern "C" void app_main(void) {
     TickType_t tick = xTaskGetTickCount();
     utsushimi::EyeState previous;
     uint64_t previous_actions = 0;
+    bool holding = false;
     for (;;) {
         const int64_t now = esp_timer_get_time();
         if (body.advance(static_cast<uint64_t>(now - last_update)))
@@ -102,7 +103,21 @@ extern "C" void app_main(void) {
                      static_cast<double>(body.state().valence));
             previous_actions = body.action_count();
         }
-        // 将来のタッチイベントはこのタスクでbody.input()へ渡す。
+        const bool contact = utsushimi::touch_is_held();
+        if (contact != holding) {
+            body.input(contact ? utsushimi::BodyEvent::touch_started : utsushimi::BodyEvent::touch_ended);
+            holding = contact;
+            ESP_LOGI("body", "touch holding=%d valence=%.3f expression_openness=%.3f",
+                     holding, static_cast<double>(body.state().valence),
+                     static_cast<double>(body.expression_openness()));
+        }
+        utsushimi::PettingEvent petting;
+        for (unsigned i = 0; i < 8 && utsushimi::take_petting_event(petting); ++i) {
+            body.input(utsushimi::BodyEvent::petting_detected);
+            ESP_LOGI("body", "petting_detected direction=%s valence=%.3f",
+                     petting.direction == utsushimi::PettingDirection::a_to_c ? "A->B->C" : "C->B->A",
+                     static_cast<double>(body.state().valence));
+        }
         utsushimi::EyeState pose = eyes;
         pose.openness = body.blink_openness();
         pose.upper_lid = pose.lower_lid = 1 - body.expression_openness();
