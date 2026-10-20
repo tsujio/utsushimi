@@ -79,6 +79,43 @@ void geometry() {
     EyeState bad; bad.upper_lid = std::numeric_limits<float>::quiet_NaN();
     bad.lower_lid = std::numeric_limits<float>::infinity(); compare_frame(bad);
 }
+void hysteresis() {
+    Expression e;
+    e.advance(.299f, 1); assert(e.openness()==1);
+    e.advance(.3f, 0); assert(e.state()==ExpressionState::comfortable && e.openness()==1);
+    e.advance(.2f, .125f); assert(std::abs(e.openness()-.75f)<1e-6);
+    e.advance(.2f, .125f); assert(e.openness()==.5f);
+    for (int i=0;i<100;++i) e.advance(i%2 ? .299f : .301f,.01f);
+    assert(e.openness()==.5f);
+    e.advance(.151f, 1); assert(e.openness()==.5f);
+    e.advance(.15f, 0); assert(e.state()==ExpressionState::normal && e.openness()==.5f);
+    e.advance(.2f, .2f); assert(std::abs(e.openness()-.75f)<1e-6);
+    e.advance(.2f, .2f); assert(e.openness()==1);
+    for (int i=0;i<100;++i) e.advance(i%2 ? .149f : .151f,.01f);
+    assert(e.openness()==1);
+    // 両方向の途中反転で値が飛ばず、新しい目標まで全遷移時間を使う。
+    e.advance(.35f,.1f);
+    float before=e.openness();
+    e.advance(.1f,0); assert(e.openness()==before);
+    e.advance(.1f,.1f); assert(e.openness()>before && e.openness()<1);
+    before=e.openness();
+    e.advance(.35f,0); assert(e.openness()==before);
+    e.advance(.35f,.24f); assert(e.openness()>.5f);
+    e.advance(.35f,.01f); assert(e.openness()==.5f);
+    BodyBehavior b({never,nullptr});
+    b.input(BodyEvent::petting_detected);
+    for(int i=0;i<24;++i) b.advance(10000);
+    assert(b.expression_openness()>.5f);
+    b.advance(10000); assert(b.expression_openness()==.5f);
+    b.input(BodyEvent::petting_detected);
+    for(int i=0;i<25;++i) b.advance(10000);
+    assert(b.expression_openness()==.5f);
+    while(b.state().valence>.15f) b.advance(10000);
+    assert(b.expression_openness()>.5f && b.expression_openness()<1);
+    for(int i=0;i<38;++i) b.advance(10000);
+    assert(b.expression_openness()<1);
+    b.advance(10000); assert(b.expression_openness()==1);
+}
 void animation() {
     // 入力がない通常動作では周期的な快は発生しない。
     BodyBehavior quiet({never, nullptr});
@@ -87,8 +124,8 @@ void animation() {
         const auto s = eyes(quiet);
         assert(s.openness == 1 && s.upper_lid == 0 && s.lower_lid == 0);
     }
-    for (float strength : {0.25f, 0.5f}) {
-        BehaviorParameters params; params.squint_strength = strength;
+    {
+        BehaviorParameters params;
         // 固定乱数0で実際の瞬き行動を発生させる。
         BodyBehavior body({[](void *) -> uint32_t { return 0; }, nullptr}, params);
         BodyBehavior reference({never, nullptr}, params);
@@ -103,7 +140,7 @@ void animation() {
             // 閉眼中も表情は独立して追従し、再開時はその時点の表情に戻る。
             assert(body.expression_openness() == reference.expression_openness());
             const auto s = eyes(body);
-            assert(s.upper_lid >= 0 && s.upper_lid <= strength);
+            assert(s.upper_lid >= 0 && s.upper_lid <= .5f);
             assert(s.upper_lid == s.lower_lid);
             if (s.openness == 0) {
                 closed = true;
@@ -128,6 +165,7 @@ void animation() {
 }
 }
 int main() {
+    hysteresis();
     geometry();
     animation();
 }

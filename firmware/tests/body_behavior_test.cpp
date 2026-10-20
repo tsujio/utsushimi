@@ -34,9 +34,9 @@ void units() {
     auto strong = p; strong.holding_sensitivity = 1;
     for (int i=0; i<1000; ++i) update_body(s, {true}, strong, .01f);
     assert(s.valence == 1);
-    Expression e; e.advance(1, .2f, p);
-    near(e.openness(), .5+.5*std::exp(-1.0));
-    Expression negative; negative.advance(-1, 1, p); near(negative.openness(), 1);
+    Expression e; e.advance(1, .2f);
+    near(e.openness(), .5+.5*(1-.896));
+    Expression negative; negative.advance(-1, 1); near(negative.openness(), 1);
     BodyBehavior b({never, nullptr});
     assert(!b.used_default_parameters());
     b.input(BodyEvent::petting_detected); near(b.state().valence, .35);
@@ -46,7 +46,7 @@ void units() {
     b.input(BodyEvent::touch_started); b.input(BodyEvent::touch_started);
     assert(b.stimulus().holding);
     b.input(BodyEvent::touch_ended); assert(!b.stimulus().holding);
-    advance(b, 1000000); assert(b.expression_openness() < .6f);
+    advance(b, 1000000); near(b.expression_openness(), .5);
     advance(b, 600000000); near(b.state().valence, 0); near(b.expression_openness(), 1);
 
     near(expected_blink_duration(.15f), .175);

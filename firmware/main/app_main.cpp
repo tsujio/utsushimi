@@ -81,7 +81,7 @@ extern "C" void app_main(void) {
     ESP_ERROR_CHECK(xTaskCreate(display_task, "eyes_display", 4096, nullptr, 4, nullptr) == pdPASS
                         ? ESP_OK : ESP_ERR_NO_MEM);
     utsushimi::start_touch_diagnostics();
-    // 7つの調整項目はここで上書きする。単位は秒。
+    // 5つの調整項目はここで上書きする。単位は秒。
     const utsushimi::BehaviorParameters parameters{};
     ESP_ERROR_CHECK(parameters.valid() ? ESP_OK : ESP_ERR_INVALID_ARG);
     utsushimi::BodyBehavior body({[](void *) { return esp_random(); }, nullptr}, parameters);

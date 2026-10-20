@@ -25,7 +25,7 @@ int main() {
     for(uint64_t t=2150;t<=32100;t+=50) sample(40000,t);
     // 撫での即時加算ではなく、保持の積分だけで快を得る。
     assert(std::abs(body.state().valence-.4*(1-std::exp(-30.05/20)))<.0001);
-    assert(body.expression_openness()<.85 && body.expression_openness()>.8);
+    assert(std::abs(body.expression_openness()-.5f)<1e-6);
     const float before=body.state().valence;
     sample(38000,32150); sample(38000,32200); sample(38000,32250);
     assert(!body.stimulus().holding);

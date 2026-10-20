@@ -3,15 +3,13 @@
 #include "automatic_blink.h"
 
 namespace utsushimi {
-// 時間は秒。7項目の初期値は身体反応仕様書に対応する。
+// 時間は秒。5項目の初期値は身体反応仕様書に対応する。
 struct BehaviorParameters {
     float blink_interval = 5;
     float blink_duration = 0.150f;
     float comfort_decay_time = 20;
     float petting_sensitivity = 0.35f;
     float holding_sensitivity = 0.02f;
-    float squint_strength = 0.5f;
-    float expression_response_time = 0.200f;
     bool valid() const;
 };
 struct BodyState { float valence = 0; };
@@ -20,13 +18,23 @@ struct Stimulus { bool holding = false; };
 void update_body(BodyState &state, const Stimulus &stimulus,
                  const BehaviorParameters &params, float dt);
 
-// Expressionはvalenceを継続的に追従する。入力イベントや瞬きを参照しない。
+// 合意済みの表情仕様。振る舞いの感度調整とは分離する。
+struct ExpressionSettings {
+    static constexpr float enter_valence = 0.3f, exit_valence = 0.15f;
+    static constexpr float normal_openness = 1.0f, comfortable_openness = 0.5f;
+    static constexpr double enter_seconds = 0.250, exit_seconds = 0.400;
+};
+enum class ExpressionState { normal, comfortable };
+// valenceのヒステリシスと有限時間の表情遷移。入力イベントや瞬きを参照しない。
 class Expression {
 public:
-    void advance(float valence, float dt, const BehaviorParameters &params);
+    void advance(float valence, float dt);
+    ExpressionState state() const { return state_; }
     float openness() const { return openness_; }
 private:
-    float openness_ = 1;
+    ExpressionState state_ = ExpressionState::normal;
+    float openness_ = 1, start_openness_ = 1;
+    double elapsed_ = 0;
 };
 
 class BodyBehavior {
