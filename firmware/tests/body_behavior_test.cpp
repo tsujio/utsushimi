@@ -1,4 +1,5 @@
 #include "behavior/body_behavior.h"
+#include "display/frame_timing.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -173,6 +174,36 @@ void touch_gaze() {
     }
     assert(r1.calls == r2.calls);
 }
+void display_timing() {
+    const int64_t epoch = 9000000000000LL;
+    int64_t now = epoch;
+    // 1時間分の期限に切り捨て誤差が累積しない。
+    for (int i = 1; i <= 30 * 3600; ++i) {
+        const auto next = next_display_frame_us(epoch, now);
+        assert(next - now == 33333 || next - now == 33334);
+        now = next;
+        if (i % 30 == 0) assert(now - epoch == int64_t(i / 30) * 1000000);
+    }
+    // tick丸め相当の遅延・処理超過・長いアイドル後も未来の枠へ進む。
+    assert(next_display_frame_us(epoch, epoch + 40000) == epoch + 66667);
+    assert(next_display_frame_us(epoch, epoch + 110000) == epoch + 133334);
+    assert(next_display_frame_us(epoch, epoch + 3600000000LL) == epoch + 3600033334LL);
+    // 表示側が30Hzで読み出しても、表情は10ms更新で250/400msに完了する。
+    Expression expression;
+    int64_t display_at = 0;
+    for (int ms = 10; ms <= 650; ms += 10) {
+        expression.advance(ms <= 250 ? 1 : 0, .01f);
+        if (ms * 1000 >= display_at) {
+            const auto openness = expression.openness();
+            assert(openness >= .5f && openness <= 1);
+            display_at = next_display_frame_us(0, ms * 1000);
+        }
+        if (ms == 240) assert(expression.openness() > .5f);
+        if (ms == 250) assert(expression.openness() == .5f);
+        if (ms == 640) assert(expression.openness() < 1);
+        if (ms == 650) assert(expression.openness() == 1);
+    }
+}
 void timing() {
     for (bool twice : {false,true}) {
         Forced rng{twice}; BodyBehavior b({Forced::next,&rng});
@@ -269,5 +300,5 @@ void simulation() {
 }
 int main() {
     std::setvbuf(stdout,nullptr,_IOLBF,0);
-    units(); touch_gaze(); timing(); reproducibility(); simulation();
+    units(); touch_gaze(); display_timing(); timing(); reproducibility(); simulation();
 }

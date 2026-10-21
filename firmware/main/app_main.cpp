@@ -3,6 +3,7 @@
 #include "board/amoled.h"
 #include "behavior/body_behavior.h"
 #include "display/eye_renderer.h"
+#include "display/frame_timing.h"
 #include "touch/touch_sensor.h"
 #include "esp_check.h"
 #include "esp_flash.h"
@@ -36,6 +37,7 @@ void display_task(void *) {
     int64_t render_sum = 0, transfer_sum = 0, worst = 0, last_report = esp_timer_get_time();
     unsigned frames = 0;
     uint64_t transferred_pixels = 0;
+    const int64_t frame_epoch = esp_timer_get_time();
     for (;;) {
         xQueueReceive(expressions, &eyes, portMAX_DELAY);
         const int64_t start = esp_timer_get_time();
@@ -54,10 +56,11 @@ void display_task(void *) {
         ++frames;
         if (finished - last_report >= 2000000) {
             // アイドル時間を含むFPSではなく、1フレームの処理時間を計測。
-            ESP_LOGI("eyes_perf", "frames=%u render_avg=%lldus transfer_avg=%lldus work_max=%lldus pixels_avg=%llu (budget=20000us)",
+            ESP_LOGI("eyes_perf", "frames=%u render_avg=%lldus transfer_avg=%lldus work_max=%lldus pixels_avg=%llu (budget=%lldus)",
                      frames, static_cast<long long>(render_sum / frames),
                      static_cast<long long>(transfer_sum / frames), static_cast<long long>(worst),
-                     static_cast<unsigned long long>(transferred_pixels / frames));
+                     static_cast<unsigned long long>(transferred_pixels / frames),
+                     static_cast<long long>(utsushimi::kDisplayFrameBudgetUs));
             render_sum = transfer_sum = worst = 0;
             frames = 0;
             transferred_pixels = 0;
@@ -68,11 +71,15 @@ void display_task(void *) {
             visible = true;
             ESP_LOGI("utsushimi", "Eyes ready (logical 600x450), randomized blinking active.");
         }
-        // 目安50Hz（RTOS tick単位に丸め）。転送が遅い場合は古い状態を溜めず次の最新状態を使う。
-        const int64_t remaining = 20000 - (esp_timer_get_time() - start);
-        if (remaining > 0) {
-            const TickType_t pause = pdMS_TO_TICKS((remaining + 999) / 1000);
-            if (pause > 0) vTaskDelay(pause);
+        // 目標30Hz。絶対期限により端数・tick丸めの累積を防ぎ、遅れた表示枠は飛ばす。
+        const int64_t deadline = utsushimi::next_display_frame_us(frame_epoch, esp_timer_get_time());
+        for (;;) {
+            const int64_t remaining = deadline - esp_timer_get_time();
+            if (remaining <= 0) break;
+            // tick境界で早く起床した場合も時刻を再確認する。ビジーウェイトしない。
+            const auto pause = static_cast<TickType_t>(
+                (remaining * configTICK_RATE_HZ + 999999) / 1000000);
+            vTaskDelay(pause);
         }
     }
 }
