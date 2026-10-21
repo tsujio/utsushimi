@@ -1,0 +1,8 @@
+menu "UTSUSHIMI diagnostics"
+config UTSUSHIMI_TOUCH_TRACE
+    bool "Record every touch scan and compare experimental detector"
+    default n
+    help
+        Emit one compact touch_trace record per scan (nominally 50ms).
+        Experimental results do not drive body or petting events.
+endmenu

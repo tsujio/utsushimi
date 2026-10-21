@@ -7,7 +7,7 @@ PORT ?= /dev/ttyACM0
 BAUD ?= 460800
 FIRMWARE := $(CURDIR)/firmware
 
-.PHONY: help build install flash monitor menuconfig test
+.PHONY: help build install flash monitor menuconfig test touch-replay
 help:
 	@printf '%s\n' 'make build                  ビルド' 'make install PORT=/dev/ttyACM0  ビルドして実機へ書き込み' 'make monitor PORT=/dev/ttyACM0  ログ表示（Ctrl+]で終了）' 'make menuconfig             設定' 'make test                   ホスト側の描画・瞬きテスト' 'IDF_PATH=... でESP-IDFの場所を指定できます。'
 
@@ -24,6 +24,10 @@ monitor:
 menuconfig:
 	@source "$(IDF_PATH)/export.sh" >/dev/null; idf.py -C "$(FIRMWARE)" menuconfig
 
+touch-replay:
+	@mkdir -p /tmp/utsushimi-tools
+	$(CXX) -O2 -std=c++17 -Wall -Wextra -Werror -I"$(FIRMWARE)/main" "$(FIRMWARE)/main/touch/contact_detector.cpp" "$(FIRMWARE)/tests/touch_replay.cpp" -o /tmp/utsushimi-tools/touch-replay
+
 test:
 	@tmpdir=$$(mktemp -d /tmp/utsushimi-test.XXXXXX); \
 	trap 'rm -rf "$$tmpdir"' EXIT; \
@@ -34,4 +38,5 @@ test:
 	$(CXX) -std=c++17 -Wall -Wextra -Werror -I"$(FIRMWARE)/main" "$(FIRMWARE)/main/touch/contact_detector.cpp" "$(FIRMWARE)/tests/contact_detector_test.cpp" -o "$$tmpdir/contact"; \
 	$(CXX) -O2 -std=c++17 -Wall -Wextra -Werror -I"$(FIRMWARE)/main" "$(FIRMWARE)/main/touch/contact_detector.cpp" "$(FIRMWARE)/main/behavior/body_behavior.cpp" "$(FIRMWARE)/main/behavior/automatic_blink.cpp" "$(FIRMWARE)/main/behavior/blink.cpp" "$(FIRMWARE)/tests/touch_body_test.cpp" -o "$$tmpdir/touch_body"; \
 	$(CXX) -O2 -std=c++17 -Wall -Wextra -Werror -I"$(FIRMWARE)/main" "$(FIRMWARE)/main/touch/petting_detector.cpp" "$(FIRMWARE)/main/behavior/body_behavior.cpp" "$(FIRMWARE)/main/behavior/automatic_blink.cpp" "$(FIRMWARE)/main/behavior/blink.cpp" "$(FIRMWARE)/tests/petting_detector_test.cpp" -o "$$tmpdir/petting"; \
-	"$$tmpdir/petting"; "$$tmpdir/touch_body"; "$$tmpdir/contact"; "$$tmpdir/expression"; "$$tmpdir/eyes"; "$$tmpdir/blink"; "$$tmpdir/body"; printf '%s\n' '描画・瞬き・身体反応テスト成功'
+	$(CXX) -O2 -std=c++17 -Wall -Wextra -Werror -I"$(FIRMWARE)/main" "$(FIRMWARE)/main/touch/contact_detector.cpp" "$(FIRMWARE)/tests/adaptive_contact_test.cpp" -o "$$tmpdir/adaptive"; \
+	"$$tmpdir/adaptive"; "$$tmpdir/petting"; "$$tmpdir/touch_body"; "$$tmpdir/contact"; "$$tmpdir/expression"; "$$tmpdir/eyes"; "$$tmpdir/blink"; "$$tmpdir/body"; printf '%s\n' '描画・瞬き・身体反応テスト成功'
