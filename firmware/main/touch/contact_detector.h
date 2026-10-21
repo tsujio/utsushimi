@@ -9,7 +9,7 @@ struct ContactSettings {
     static constexpr uint32_t calibration_range = 500;
     static constexpr double start_delta = 1000;
     static constexpr double end_delta = 600;
-    static constexpr uint64_t debounce_ms = 100;
+    static constexpr uint64_t debounce_ms = 50;
     static constexpr uint64_t max_gap_ms = 150;
     // 非接触の小さな変動だけを追従。すべて実機調整用の暫定値。
     static constexpr uint64_t baseline_settle_ms = 2000;

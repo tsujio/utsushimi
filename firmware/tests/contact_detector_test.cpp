@@ -15,20 +15,20 @@ int main() {
     assert(d.update(38000,2050)==ContactUpdate::none);
     assert(d.update(38999,2100)==ContactUpdate::none);
     assert(d.update(39000,2150)==ContactUpdate::none);
-    assert(d.update(39000,2200)==ContactUpdate::none);
-    assert(d.update(39000,2250)==ContactUpdate::touch_started);
+    assert(d.update(39000,2199)==ContactUpdate::none);
+    assert(d.update(39000,2200)==ContactUpdate::touch_started);
     for (uint64_t t=2300;t<10000;t+=50) assert(d.update(38800,t)==ContactUpdate::none);
     assert(d.touching() && d.baseline()==38000); // 長押しで基準値を更新しない。
-    d.update(38600,10000); d.update(38600,10050);
+    d.update(38600,10000); d.update(38600,10020);
     d.missing(); // 失敗を挟む継続判定は無効。
     assert(d.touching());
     assert(d.update(38600,10100)==ContactUpdate::none);
-    assert(d.update(38600,10150)==ContactUpdate::none);
-    assert(d.update(38600,10200)==ContactUpdate::touch_ended);
+    assert(d.update(38600,10149)==ContactUpdate::none);
+    assert(d.update(38600,10150)==ContactUpdate::touch_ended);
     assert(d.update(38000,10250)==ContactUpdate::none);
     d.update(40000,10300);
     assert(d.update(40000,11000)==ContactUpdate::none); // 長い更新停止で即確定しない。
-    d.update(40000,11050);
+    d.update(40000,11020);
     assert(d.update(40000,11100)==ContactUpdate::touch_started);
 
     ContactDetector noisy;
@@ -54,21 +54,21 @@ int main() {
     ContactDetector electrodes[3];
     const uint32_t bases[] = {38000, 24000, 51000};
     for (unsigned i=0;i<3;++i) calibrate(electrodes[i], bases[i]);
-    for (uint64_t t=2000;t<=2100;t+=50) {
+    for (uint64_t t=2000;t<=2050;t+=50) {
         auto a=electrodes[0].update(bases[0]+1800,t);
         auto b=electrodes[1].update(bases[1],t);
         auto c=electrodes[2].update(bases[2]+1800,t);
-        assert(a==(t==2100 ? ContactUpdate::touch_started : ContactUpdate::none));
+        assert(a==(t==2050 ? ContactUpdate::touch_started : ContactUpdate::none));
         assert(b==ContactUpdate::none);
         assert(c==a);
     }
     electrodes[1].missing();
-    for (uint64_t t=2150;t<=2250;t+=50) {
+    for (uint64_t t=2150;t<=2200;t+=50) {
         auto a=electrodes[0].update(bases[0],t);
         auto b=electrodes[1].update(bases[1]+1800,t);
         assert(electrodes[2].update(bases[2]+1800,t)==ContactUpdate::none);
-        assert(a==(t==2250 ? ContactUpdate::touch_ended : ContactUpdate::none));
-        assert(b==(t==2250 ? ContactUpdate::touch_started : ContactUpdate::none));
+        assert(a==(t==2200 ? ContactUpdate::touch_ended : ContactUpdate::none));
+        assert(b==(t==2200 ? ContactUpdate::touch_started : ContactUpdate::none));
     }
     assert(!electrodes[0].touching() && electrodes[1].touching() && electrodes[2].touching());
     for (unsigned i=0;i<3;++i) assert(electrodes[i].baseline()==bases[i]);
@@ -87,7 +87,7 @@ int main() {
         const double frozen=drift.baseline();
         for(uint64_t t=362050;t<=392050;t+=50) drift.update(current+1800,t);
         assert(drift.touching() && drift.baseline()==frozen);
-        drift.update(current,392100); drift.update(current,392150);
+        drift.update(current,392100); drift.update(current,392120);
         assert(drift.update(current,392200)==ContactUpdate::touch_ended);
         for(uint64_t t=392250;t<=394150;t+=50) drift.update(current,t);
         assert(drift.baseline()==frozen); // 離脱直後は凍結

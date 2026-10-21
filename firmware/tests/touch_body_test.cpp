@@ -18,7 +18,7 @@ int main() {
         }
         body.advance(50000);
     };
-    sample(40000,2000); sample(40000,2050);
+    sample(40000,2000); sample(40000,2020);
     assert(body.state().valence==0);
     sample(40000,2100);
     assert(body.stimulus().holding && body.state().valence>0);
