@@ -73,6 +73,25 @@ int main(int argc, char **argv) {
             assert(frame[1 + row * kFrameWidth + col] == uint16_t((p << 8) | (p >> 8)));
         }
     }
+    // 接触反射の最大変位を、表情・瞬きと組み合わせて高速描画へ渡す。
+    for (float open : {0.0f, 0.2f, 0.5f, 1.0f}) for (float lid : {0.0f, 0.25f, 0.5f}) {
+        EyeState up{};
+        up.gaze_y = -0.3f * kEyeRadius * up.pupil_size / kGazePixels;
+        up.openness = open; up.upper_lid = up.lower_lid = lid;
+        verify_tiles(up);
+    }
+    EyeState up{};
+    up.gaze_y = -0.3f * kEyeRadius * up.pupil_size / kGazePixels;
+    for (int cx : {160, 440}) {
+        assert(eye_pixel(cx, 182, normal) == 0xffff);
+        assert(eye_pixel(cx, 182, up) == 0); // 両瞳の上への移動。
+        assert(eye_pixel(cx, 252, normal) == 0);
+        assert(eye_pixel(cx, 252, up) == 0xffff);
+    }
+    // 瞳から離れた白目・外周・背景は変わらない。
+    for (int y = 0; y < kFaceHeight; ++y) for (int x = 0; x < kFaceWidth; ++x)
+        if (y < 175 || y > 260 || (std::abs(x - 160) > 36 && std::abs(x - 440) > 36))
+            assert(eye_pixel(x, y, normal) == eye_pixel(x, y, up));
     if (argc == 2) {
         std::ofstream out(argv[1], std::ios::binary);
         out << "P6\n600 450\n255\n";

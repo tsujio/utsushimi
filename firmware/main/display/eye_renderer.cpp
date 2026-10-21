@@ -47,9 +47,9 @@ uint16_t eye_pixel(int x, int y, const EyeState &s) {
     if (white == 0) return 0;
     // ほんの少し内向きの瞳で柔らかい表情にする。
     const float inset = x < kFaceWidth / 2 ? 5.0f : -5.0f;
-    const float px = dx - inset - 20 * bound(s.gaze_x, -1, 1);
-    const float py = dy + 3 - 20 * bound(s.gaze_y, -1, 1);
-    const float pupil = 86 * bound(s.pupil_size, 0.2f, 0.6f);
+    const float px = dx - inset - kGazePixels * bound(s.gaze_x, -1, 1);
+    const float py = dy + 3 - kGazePixels * bound(s.gaze_y, -1, 1);
+    const float pupil = kEyeRadius * bound(s.pupil_size, 0.2f, 0.6f);
     const float outside_pupil = std::clamp(std::sqrt(px * px + py * py) - pupil + 0.5f, 0.0f, 1.0f);
     return gray(white * outside_pupil);
 }
@@ -59,9 +59,9 @@ void render_region(uint16_t *pixels, const EyeState &s, int origin_x, int origin
     std::fill_n(pixels, (Width * Height), uint16_t{0});
     const float open = bound(s.openness, 0, 1);
     if (open <= 0.005f) return;
-    const float gaze_x = 20 * bound(s.gaze_x, -1, 1);
-    const float gaze_y = 20 * bound(s.gaze_y, -1, 1);
-    const float pupil = 86 * bound(s.pupil_size, 0.2f, 0.6f);
+    const float gaze_x = kGazePixels * bound(s.gaze_x, -1, 1);
+    const float gaze_y = kGazePixels * bound(s.gaze_y, -1, 1);
+    const float pupil = kEyeRadius * bound(s.pupil_size, 0.2f, 0.6f);
     const float pupil_inner = (pupil - 0.5f) * (pupil - 0.5f);
     const float pupil_outer = (pupil + 0.5f) * (pupil + 0.5f);
     const float upper = bound(s.upper_lid, 0, 0.5f), lower = bound(s.lower_lid, 0, 0.5f);

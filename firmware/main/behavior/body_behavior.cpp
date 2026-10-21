@@ -43,14 +43,28 @@ BodyBehavior::BodyBehavior(RandomSource random, BehaviorParameters params)
       movement_(random, params_.blink_interval, params_.blink_duration) {}
 void BodyBehavior::input(BodyEvent event) {
     switch (event) {
-    case BodyEvent::touch_started: stimulus_.holding = true; break;
-    case BodyEvent::touch_ended: stimulus_.holding = false; break;
+    case BodyEvent::touch_started:
+        if (!stimulus_.holding && gaze_elapsed_us_ == 3500000) {
+            gaze_elapsed_us_ = 0;
+            gaze_return_start_ = -0.3f;
+        }
+        stimulus_.holding = true;
+        break;
+    case BodyEvent::touch_ended:
+        // 上昇・保持中なら現在位置から復帰。復帰中の離脱は期限を延ばさない。
+        if (gaze_elapsed_us_ < 3150000) {
+            gaze_return_start_ = touch_gaze_offset();
+            gaze_elapsed_us_ = 3150000;
+        }
+        stimulus_.holding = false;
+        break;
     case BodyEvent::petting_detected:
         state_.valence = std::clamp(state_.valence + params_.petting_sensitivity, -1.0f, 1.0f);
         break;
     }
 }
 bool BodyBehavior::advance(uint64_t elapsed) {
+    gaze_elapsed_us_ += std::min<uint64_t>(elapsed, 3500000 - gaze_elapsed_us_);
     const bool limited = elapsed > 100000;
     pending_us_ += std::min<uint64_t>(elapsed, 100000);
     while (pending_us_ >= 10000) {
@@ -58,6 +72,15 @@ bool BodyBehavior::advance(uint64_t elapsed) {
         step();
     }
     return limited;
+}
+float BodyBehavior::touch_gaze_offset() const {
+    const auto t = gaze_elapsed_us_;
+    if (t >= 3500000) return 0;
+    if (t >= 150000 && t < 3150000) return -0.3f;
+    const float u = t < 150000 ? static_cast<float>(t) / 150000
+                              : static_cast<float>(t - 3150000) / 350000;
+    const float blend = u * u * (3 - 2 * u);
+    return t < 150000 ? -0.3f * blend : gaze_return_start_ * (1 - blend);
 }
 void BodyBehavior::step() {
     now_us_ += 10000;

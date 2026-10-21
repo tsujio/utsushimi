@@ -4,9 +4,10 @@
 namespace utsushimi {
 constexpr int kFaceWidth = 600;
 constexpr int kFaceHeight = 450;
+constexpr float kEyeRadius = 86.0f, kGazePixels = 20.0f;
 struct EyeState {
     float gaze_x = 0.0f;       // -1..1。今回は正面で固定。
-    float gaze_y = 0.0f;       // -1..1
+    float gaze_y = 0.0f;       // -1..1、正は下向き。1はkGazePixels画素。
     float openness = 1.0f;     // 瞬きの開眼率、0..1
     float pupil_size = 0.40f;  // 白目半径に対する比率、0.2..0.6
     float upper_lid = 0.0f;   // 快のまぶた形状。0で従来と画素一致。

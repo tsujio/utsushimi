@@ -127,10 +127,12 @@ extern "C" void app_main(void) {
                      static_cast<double>(body.state().valence));
         }
         utsushimi::EyeState pose = eyes;
+        pose.gaze_y = body.touch_gaze_offset() * utsushimi::kEyeRadius * pose.pupil_size / utsushimi::kGazePixels;
         pose.openness = body.blink_openness();
         pose.upper_lid = pose.lower_lid = 1 - body.expression_openness();
         if (pose.openness != previous.openness || pose.upper_lid != previous.upper_lid ||
-            pose.lower_lid != previous.lower_lid) {
+            pose.lower_lid != previous.lower_lid || pose.gaze_y != previous.gaze_y) {
+            eyes.gaze_y = pose.gaze_y;
             eyes.openness = pose.openness;
             eyes.upper_lid = pose.upper_lid;
             eyes.lower_lid = pose.lower_lid;

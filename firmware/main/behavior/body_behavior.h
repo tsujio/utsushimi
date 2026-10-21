@@ -42,7 +42,8 @@ public:
     explicit BodyBehavior(RandomSource random, BehaviorParameters params = {});
     // 同一タスクから呼ぶ。イベントは現在のモデル時刻で適用する。
     void input(BodyEvent event);
-    // 内部10ms刻み。1回100msまで処理し、それ以上の休止時間は捨てる。
+    // 身体・表情・瞬きは内部10ms刻み、1回100msまで。超過時間は捨てる。
+    // 視線反射は制限前の経過時間で進める。
     // trueなら時間を制限した。待機・動的確保はしない。
     bool advance(uint64_t elapsed_us);
     const BodyState &state() const { return state_; }
@@ -52,6 +53,8 @@ public:
     bool used_default_parameters() const { return used_default_parameters_; }
     float expression_openness() const { return expression_.openness(); }
     float blink_openness() const { return movement_.openness(now_us_); }
+    // 瞳半径単位の上下変位。負が上。描画座標への変換は呼び出し側で行う。
+    float touch_gaze_offset() const;
     uint64_t now_us() const { return now_us_; }
     uint64_t action_count() const { return movement_.action_count(); }
     uint64_t double_count() const { return movement_.double_count(); }
@@ -65,6 +68,9 @@ private:
     Stimulus stimulus_;
     Expression expression_;
     AutomaticBlink movement_;
+    // 完了値で飽和。瞬き・身体積分の休止時間制限とは独立。
+    uint64_t gaze_elapsed_us_ = 3500000;
+    float gaze_return_start_ = -0.3f;
     uint64_t pending_us_ = 0, now_us_ = 0;
 };
 } // namespace utsushimi
