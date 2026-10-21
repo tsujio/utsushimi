@@ -42,6 +42,18 @@ int main(int argc, char **argv) {
             }
         }
     }
+    // 表情遷移と瞬きの組合せでも全画素が参照描画と一致する。
+    for (int lid = 0; lid <= 10; ++lid) for (int blink = 0; blink <= 10; ++blink) {
+        EyeState state{};
+        state.upper_lid = state.lower_lid = lid * 0.05f;
+        state.openness = blink * 0.1f;
+        render_eye_frame(frame.data() + 1, state);
+        assert(frame.front() == 0x1234 && frame.back() == 0x1234);
+        for (int row = 0; row < kFrameHeight; ++row) for (int col = 0; col < kFrameWidth; ++col) {
+            const auto p = eye_pixel(kFaceWidth - 1 - (kFrameY + row), kFrameX + col, state);
+            assert(frame[1 + row * kFrameWidth + col] == uint16_t((p << 8) | (p >> 8)));
+        }
+    }
     if (argc == 2) {
         std::ofstream out(argv[1], std::ios::binary);
         out << "P6\n600 450\n255\n";

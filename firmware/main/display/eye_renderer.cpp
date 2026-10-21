@@ -88,10 +88,17 @@ void render_eye_frame(uint16_t *pixels, const EyeState &s) {
             if (eye_d2 >= 86.5f * 86.5f) continue;
             const float pupil_d2 = px2 + pupil_y2[col];
             if (pupil_d2 <= pupil_inner) continue;
+            // まぶたで隠れる画素は色計算を省略。完全な白目は直接書く。
+            const float lid = shaped ? lid_coverage(eye_y[col], top, bottom) : 1.0f;
+            if (lid == 0) continue;
+            if (lid == 1 && eye_d2 <= 85.5f * 85.5f && pupil_d2 >= pupil_outer) {
+                pixels[row * kFrameWidth + col] = 0xffff;
+                continue;
+            }
             // 平方根は輪郭の1pxだけ。白目内部・黒背景は二乗距離で判定。
             float white = eye_d2 <= 85.5f * 85.5f ? 1 :
                 std::clamp(86.5f - std::sqrt(eye_d2), 0.0f, 1.0f);
-            if (shaped) white = std::min(white, lid_coverage(eye_y[col], top, bottom));
+            white = std::min(white, lid);
             const float outside = pupil_d2 >= pupil_outer ? 1 :
                 std::clamp(std::sqrt(pupil_d2) - pupil + 0.5f, 0.0f, 1.0f);
             const uint16_t pixel = gray(white * outside);
