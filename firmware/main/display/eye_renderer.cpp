@@ -53,8 +53,10 @@ uint16_t eye_pixel(int x, int y, const EyeState &s) {
     const float outside_pupil = std::clamp(std::sqrt(px * px + py * py) - pupil + 0.5f, 0.0f, 1.0f);
     return gray(white * outside_pupil);
 }
-void render_eye_frame(uint16_t *pixels, const EyeState &s) {
-    std::fill_n(pixels, kFramePixels, uint16_t{0});
+namespace {
+template<int Width, int Height>
+void render_region(uint16_t *pixels, const EyeState &s, int origin_x, int origin_y) {
+    std::fill_n(pixels, (Width * Height), uint16_t{0});
     const float open = bound(s.openness, 0, 1);
     if (open <= 0.005f) return;
     const float gaze_x = 20 * bound(s.gaze_x, -1, 1);
@@ -64,17 +66,17 @@ void render_eye_frame(uint16_t *pixels, const EyeState &s) {
     const float pupil_outer = (pupil + 0.5f) * (pupil + 0.5f);
     const float upper = bound(s.upper_lid, 0, 0.5f), lower = bound(s.lower_lid, 0, 0.5f);
     const bool shaped = upper > 0 || lower > 0;
-    float eye_y2[kFrameWidth], pupil_y2[kFrameWidth], eye_y[kFrameWidth];
-    for (int col = 0; col < kFrameWidth; ++col) {
-        const float dy = kFrameX + col - 225.0f;
+    float eye_y2[Width], pupil_y2[Width], eye_y[Width];
+    for (int col = 0; col < Width; ++col) {
+        const float dy = origin_x + col - 225.0f;
         const float ey = dy / open;
         const float py = dy + 3 - gaze_y;
         if (shaped) eye_y[col] = ey;
         eye_y2[col] = ey * ey;
         pupil_y2[col] = py * py;
     }
-    for (int row = 0; row < kFrameHeight; ++row) {
-        const int x = kFaceWidth - 1 - (kFrameY + row);
+    for (int row = 0; row < Height; ++row) {
+        const int x = kFaceWidth - 1 - (origin_y + row);
         const bool left = x < kFaceWidth / 2;
         const float dx = x - (left ? 155.0f : 445.0f);
         if (std::abs(dx) >= 87) continue;
@@ -83,7 +85,7 @@ void render_eye_frame(uint16_t *pixels, const EyeState &s) {
         if (shaped) lid_edges(dx, left, upper, lower, top, bottom);
         const float px = dx - (left ? 5.0f : -5.0f) - gaze_x;
         const float px2 = px * px;
-        for (int col = 0; col < kFrameWidth; ++col) {
+        for (int col = 0; col < Width; ++col) {
             const float eye_d2 = dx2 + eye_y2[col];
             if (eye_d2 >= 86.5f * 86.5f) continue;
             const float pupil_d2 = px2 + pupil_y2[col];
@@ -92,7 +94,7 @@ void render_eye_frame(uint16_t *pixels, const EyeState &s) {
             const float lid = shaped ? lid_coverage(eye_y[col], top, bottom) : 1.0f;
             if (lid == 0) continue;
             if (lid == 1 && eye_d2 <= 85.5f * 85.5f && pupil_d2 >= pupil_outer) {
-                pixels[row * kFrameWidth + col] = 0xffff;
+                pixels[row * Width + col] = 0xffff;
                 continue;
             }
             // 平方根は輪郭の1pxだけ。白目内部・黒背景は二乗距離で判定。
@@ -102,8 +104,16 @@ void render_eye_frame(uint16_t *pixels, const EyeState &s) {
             const float outside = pupil_d2 >= pupil_outer ? 1 :
                 std::clamp(std::sqrt(pupil_d2) - pupil + 0.5f, 0.0f, 1.0f);
             const uint16_t pixel = gray(white * outside);
-            pixels[row * kFrameWidth + col] = (pixel << 8) | (pixel >> 8);
+            pixels[row * Width + col] = (pixel << 8) | (pixel >> 8);
         }
     }
+}
+} // namespace
+void render_eye_frame(uint16_t *pixels, const EyeState &s) {
+    render_region<kFrameWidth, kFrameHeight>(pixels, s, kFrameX, kFrameY);
+}
+void render_eye_tiles(uint16_t *pixels, const EyeState &s) {
+    render_region<kEyeTileSize, kEyeTileSize>(pixels, s, kEyeTileX, kEyeTileY[0]);
+    render_region<kEyeTileSize, kEyeTileSize>(pixels + kEyeTilePixels, s, kEyeTileX, kEyeTileY[1]);
 }
 }  // namespace utsushimi

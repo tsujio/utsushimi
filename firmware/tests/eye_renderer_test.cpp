@@ -28,10 +28,28 @@ int main(int argc, char **argv) {
     assert(differences > 1000);
     assert(eye_pixel(-1, 0, normal) == 0);
     assert(eye_pixel(600, 450, normal) == 0);
+    std::vector<uint16_t> tiles(2 * kEyeTilePixels + 2, 0x1234);
+    auto verify_tiles = [&](const EyeState &state) {
+        render_eye_tiles(tiles.data() + 1, state);
+        assert(tiles.front() == 0x1234 && tiles.back() == 0x1234);
+        // 全画面で比較し、矩形外に描画が欠けないことも確認。
+        for (int y = 0; y < kFaceHeight; ++y) for (int x = 0; x < kFaceWidth; ++x) {
+            const int nx = y, ny = kFaceWidth - 1 - x;
+            uint16_t actual = 0;
+            for (int eye = 0; eye < 2; ++eye) {
+                const int col = nx - kEyeTileX, row = ny - kEyeTileY[eye];
+                if (col >= 0 && col < kEyeTileSize && row >= 0 && row < kEyeTileSize)
+                    actual = tiles[1 + eye * kEyeTilePixels + row * kEyeTileSize + col];
+            }
+            const uint16_t p = eye_pixel(x, y, state);
+            assert(actual == uint16_t((p << 8) | (p >> 8)));
+        }
+    };
     // 高速フレーム生成を参照描画と照合。回転・バイト順・残像消去も検証。
     std::vector<uint16_t> frame(kFramePixels + 2, 0x1234);
     for (const EyeState state : {normal, closed, changed, invalid,
                                 EyeState{0, 0, 0.5f, 0.4f}, EyeState{0, 0, 0.02f, 0.4f}}) {
+        verify_tiles(state);
         render_eye_frame(frame.data() + 1, state);
         assert(frame.front() == 0x1234 && frame.back() == 0x1234);
         for (int row = 0; row < kFrameHeight; ++row) {
@@ -47,6 +65,7 @@ int main(int argc, char **argv) {
         EyeState state{};
         state.upper_lid = state.lower_lid = lid * 0.05f;
         state.openness = blink * 0.1f;
+        verify_tiles(state);
         render_eye_frame(frame.data() + 1, state);
         assert(frame.front() == 0x1234 && frame.back() == 0x1234);
         for (int row = 0; row < kFrameHeight; ++row) for (int col = 0; col < kFrameWidth; ++col) {

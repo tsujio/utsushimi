@@ -18,13 +18,14 @@
 namespace {
 QueueHandle_t expressions;
 void display_task(void *) {
-    static_assert(utsushimi::kFramePixels * sizeof(uint16_t) <= AMOLED_MAX_TRANSFER_BYTES);
-    // DMAが直接参照できる内部RAM。描画完了後に一括転送し、完了まで変更しない。
+    static_assert(utsushimi::kEyeTilePixels * sizeof(uint16_t) <= AMOLED_MAX_TRANSFER_BYTES);
+    // 2枚を連続した内部DMAバッファへ直接描画し、転送完了まで変更しない。
     auto *frame = static_cast<uint16_t *>(heap_caps_malloc(
-        utsushimi::kFramePixels * sizeof(uint16_t), MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+        2 * utsushimi::kEyeTilePixels * sizeof(uint16_t), MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
     if (!frame) ESP_LOGE("utsushimi", "Frame allocation failed; largest DMA block: %u bytes",
                          static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL)));
     ESP_ERROR_CHECK(frame ? ESP_OK : ESP_ERR_NO_MEM);
+    static_assert(AMOLED_WIDTH * AMOLED_STRIP_ROWS <= 2 * utsushimi::kEyeTilePixels);
     amoled_init();
     std::memset(frame, 0, AMOLED_WIDTH * AMOLED_STRIP_ROWS * sizeof(uint16_t));
     for (int y = 0; y < AMOLED_HEIGHT; y += AMOLED_STRIP_ROWS)
@@ -34,13 +35,18 @@ void display_task(void *) {
     utsushimi::EyeState eyes;
     int64_t render_sum = 0, transfer_sum = 0, worst = 0, last_report = esp_timer_get_time();
     unsigned frames = 0;
+    uint64_t transferred_pixels = 0;
     for (;;) {
         xQueueReceive(expressions, &eyes, portMAX_DELAY);
         const int64_t start = esp_timer_get_time();
-        utsushimi::render_eye_frame(frame, eyes);
+        utsushimi::render_eye_tiles(frame, eyes);
         const int64_t rendered = esp_timer_get_time();
-        amoled_write_rect(utsushimi::kFrameX, utsushimi::kFrameY,
-                          utsushimi::kFrameWidth, utsushimi::kFrameHeight, frame);
+        for (int eye = 0; eye < 2; ++eye) {
+            amoled_write_rect(utsushimi::kEyeTileX, utsushimi::kEyeTileY[eye],
+                              utsushimi::kEyeTileSize, utsushimi::kEyeTileSize,
+                              frame + eye * utsushimi::kEyeTilePixels);
+            transferred_pixels += utsushimi::kEyeTilePixels;
+        }
         const int64_t finished = esp_timer_get_time();
         render_sum += rendered - start;
         transfer_sum += finished - rendered;
@@ -48,11 +54,13 @@ void display_task(void *) {
         ++frames;
         if (finished - last_report >= 2000000) {
             // アイドル時間を含むFPSではなく、1フレームの処理時間を計測。
-            ESP_LOGI("eyes_perf", "frames=%u render_avg=%lldus transfer_avg=%lldus work_max=%lldus (budget=20000us)",
+            ESP_LOGI("eyes_perf", "frames=%u render_avg=%lldus transfer_avg=%lldus work_max=%lldus pixels_avg=%llu (budget=20000us)",
                      frames, static_cast<long long>(render_sum / frames),
-                     static_cast<long long>(transfer_sum / frames), static_cast<long long>(worst));
+                     static_cast<long long>(transfer_sum / frames), static_cast<long long>(worst),
+                     static_cast<unsigned long long>(transferred_pixels / frames));
             render_sum = transfer_sum = worst = 0;
             frames = 0;
+            transferred_pixels = 0;
             last_report = finished;
         }
         if (!visible) {

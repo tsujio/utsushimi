@@ -20,4 +20,10 @@ constexpr int kFrameWidth = 186, kFrameHeight = 476;
 constexpr int kFramePixels = kFrameWidth * kFrameHeight;
 // kFramePixels個のバッファへ、送信用ビッグエンディアンRGB565を生成する。
 void render_eye_frame(uint16_t *pixels, const EyeState &state);
+// ネイティブ座標の左右2矩形。偶数境界で輪郭全体を含む。
+constexpr int kEyeTileSize = 174, kEyeTilePixels = kEyeTileSize * kEyeTileSize;
+constexpr int kEyeTileX = 138;
+constexpr int kEyeTileY[2] = {68, 358};
+// 連続する2枚分の送信用バッファへ直接描画。閉眼時も全画素を黒で上書きする。
+void render_eye_tiles(uint16_t *pixels, const EyeState &state);
 }  // namespace utsushimi
