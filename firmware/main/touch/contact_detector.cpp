@@ -14,7 +14,8 @@ void ContactDetector::missing() {
     // 測定欠落を離脱とは扱わず、確定状態と校正済み基準値を保つ。
 }
 ContactUpdate ContactDetector::update(uint32_t raw, uint64_t now) {
-    if (have_time_ && (now < last_ms_ || now - last_ms_ > ContactSettings::max_gap_ms)) missing();
+    if (have_time_ && now <= last_ms_) { missing(); return ContactUpdate::none; }
+    if (have_time_ && now - last_ms_ > ContactSettings::max_gap_ms) missing();
     const uint64_t dt = have_time_ ? now - last_ms_ : 0;
     const double raw_step = std::abs(static_cast<double>(raw) - previous_raw_);
     previous_raw_ = raw;
@@ -36,26 +37,31 @@ ContactUpdate ContactDetector::update(uint32_t raw, uint64_t now) {
     }
     // 無効値は基準値にも離脱判定にも使わない。
     if (raw == 0) { missing(); return ContactUpdate::none; }
-    const double difference = delta(raw);
+    // 安定判定の参照値は基準値と独立。固定した起点との比較では、
+    // 緩やかなドリフトでも待機時間が繰り返しリセットされてしまう。
+    if (!baseline_stable_ || raw_step > ContactSettings::baseline_step_limit ||
+        std::abs(static_cast<double>(raw) - stability_reference_) > ContactSettings::stability_tolerance) {
+        baseline_stable_ = true;
+        baseline_stable_since_ = now;
+        stability_reference_ = raw;
+    } else {
+        stability_reference_ += (raw - stability_reference_) *
+            -std::expm1(-static_cast<double>(dt) / ContactSettings::stability_tau_ms);
+        const uint64_t stable_ms = now - baseline_stable_since_;
+        if (stable_ms > ContactSettings::baseline_settle_ms) {
+            // 待機境界をまたぐ場合も、10秒経過後の時間だけを積分する。
+            const uint64_t follow_ms = std::min(dt, stable_ms - ContactSettings::baseline_settle_ms);
+            baseline_ += delta(raw) *
+                -std::expm1(-static_cast<double>(follow_ms) / ContactSettings::baseline_tau_ms);
+        }
+    }
+    // 更新済み基準値に対して通常のヒステリシス・デバウンスを適用する。
     const bool crossing = touching_ ? delta(raw) <= ContactSettings::end_delta
                                     : delta(raw) >= ContactSettings::start_delta;
     if (!crossing) {
         candidate_ = false;
-        if (!touching_ && dt && std::abs(difference) <= ContactSettings::baseline_gate &&
-            raw_step <= ContactSettings::baseline_step_limit) {
-            if (!baseline_stable_) {
-                baseline_stable_ = true;
-                baseline_stable_since_ = now;
-            }
-            if (now - baseline_stable_since_ >= ContactSettings::baseline_settle_ms) {
-                const double amount = difference * -std::expm1(-static_cast<double>(dt) / ContactSettings::baseline_tau_ms);
-                const double limit = ContactSettings::baseline_max_per_second * dt / 1000.0;
-                baseline_ += std::clamp(amount, -limit, limit);
-            }
-        } else baseline_stable_ = false;
         return ContactUpdate::none;
     }
-    baseline_stable_ = false;
     if (!candidate_) { candidate_ = true; since_ms_ = now; }
     if (now - since_ms_ < ContactSettings::debounce_ms) return ContactUpdate::none;
     candidate_ = false;
