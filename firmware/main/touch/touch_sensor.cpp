@@ -1,7 +1,5 @@
 #include "touch_sensor.h"
 #include "contact_detector.h"
-#include "adaptive_contact.h"
-#include "sdkconfig.h"
 #include "driver/touch_sens.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -31,9 +29,6 @@ struct Electrode {
     int header_pin;
     touch_channel_handle_t channel = nullptr;
     ContactDetector detector{};
-#if CONFIG_UTSUSHIMI_TOUCH_TRACE
-    AdaptiveContact trial{};
-#endif
     unsigned warmup = 3;
     uint64_t last_log_ms = 0;
 };
@@ -117,11 +112,6 @@ void touch_task(void *) {
             const uint64_t now = esp_timer_get_time() / 1000;
             bool valid = true;
             uint8_t mask = 0, bit = 1;
-#if CONFIG_UTSUSHIMI_TOUCH_TRACE
-            uint32_t trace_raw[3]{};
-            unsigned trace_index = 0;
-            unsigned trial_mask = 0, fault_mask = 0;
-#endif
             for (auto &e : sensor.electrodes) {
                 auto &detector = e.detector;
                 auto &warmup = e.warmup;
@@ -132,12 +122,6 @@ void touch_task(void *) {
                         --warmup;
                         if (!warmup) ESP_LOGI(e.tag, "Warmup complete; keep untouched for calibration (~2s)");
                     } else {
-#if CONFIG_UTSUSHIMI_TOUCH_TRACE
-                        trace_raw[trace_index] = raw;
-                        e.trial.update(raw, now);
-                        if (e.trial.touching()) trial_mask |= bit;
-                        if (e.trial.fault()) fault_mask |= bit;
-#endif
                         const auto result = detector.update(raw, now);
                         const char *event = nullptr;
                         switch (result) {
@@ -159,23 +143,11 @@ void touch_task(void *) {
                     }
                 } else {
                     detector.missing(); valid = false;
-#if CONFIG_UTSUSHIMI_TOUCH_TRACE
-                    e.trial.missing();
-#endif
                 }
-#if CONFIG_UTSUSHIMI_TOUCH_TRACE
-                ++trace_index;
-#endif
                 valid = valid && !warmup && detector.ready();
                 if (detector.touching()) mask |= bit;
                 bit <<= 1;
             }
-#if CONFIG_UTSUSHIMI_TOUCH_TRACE
-            ESP_LOGI("touch_trace", "t=%llu a=%lu b=%lu c=%lu old=%u trial=%u fault=%u",
-                     static_cast<unsigned long long>(now),
-                     static_cast<unsigned long>(trace_raw[0]), static_cast<unsigned long>(trace_raw[1]),
-                     static_cast<unsigned long>(trace_raw[2]), static_cast<unsigned>(mask), trial_mask, fault_mask);
-#endif
             if (valid) {
                 const ContactSnapshot snapshot{mask != 0, static_cast<int64_t>(now * 1000)};
                 xQueueOverwrite(contact_snapshot, &snapshot);
@@ -198,14 +170,7 @@ void touch_task(void *) {
             // 走査が失敗した場合、未完了チャンネルを区別できないため全電極を欠落扱いにする。
             for (auto &e : sensor.electrodes) {
                 e.detector.missing();
-#if CONFIG_UTSUSHIMI_TOUCH_TRACE
-                e.trial.missing();
-#endif
             }
-#if CONFIG_UTSUSHIMI_TOUCH_TRACE
-            ESP_LOGI("touch_trace", "t=%llu a=0 b=0 c=0 old=0 trial=0 fault=7",
-                     static_cast<unsigned long long>(scan_end / 1000));
-#endif
             petting.missing();
         }
         // 遅延時に過去の測定を追いかけて連続実行しない。
