@@ -1,0 +1,29 @@
+menu "UTSUSHIMI"
+config UTSUSHIMI_AUDIO_TEST
+    bool "Play one short tone after boot (provisional MAX98357A wiring)"
+    default n
+    help
+        Enables I2S output on GPIO38/39/41. Plays 440Hz once,
+        five seconds after boot. Every reset repeats the test. Verify wiring
+        and the amplifier SD pull-up before enabling. Normal operation is silent.
+config UTSUSHIMI_AUDIO_TEST_DURATION_MS
+    int "Test tone duration (ms)"
+    depends on UTSUSHIMI_AUDIO_TEST
+    range 200 2000
+    default 200
+    help
+        Use 1000ms to distinguish a missing output from a missed short tone.
+        The test still runs only once per boot.
+config UTSUSHIMI_AUDIO_TEST_VOLUME_PERMILLE
+    int "Test PCM amplitude (permille of full scale)"
+    depends on UTSUSHIMI_AUDIO_TEST
+    range 0 100
+    default 10
+config UTSUSHIMI_AUDIO_TEST_PROGRESS
+    bool "Log body/display/touch progress during audio test"
+    depends on UTSUSHIMI_AUDIO_TEST
+    default n
+    help
+        Collects task progress counters and logs their deltas about every 500ms
+        during transmission. Enable only when diagnosing concurrent operation.
+endmenu

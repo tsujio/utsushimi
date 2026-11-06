@@ -35,3 +35,6 @@ coredump*
 __pycache__/
 *.py[cod]
 .venv/
+
+# ローカルの実機確認写真
+/PXL_*.jpg

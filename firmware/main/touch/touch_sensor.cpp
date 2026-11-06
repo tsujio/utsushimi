@@ -1,4 +1,5 @@
 #include "touch_sensor.h"
+#include "diagnostics/runtime_progress.h"
 #include "contact_detector.h"
 #include "driver/touch_sens.h"
 #include "esp_log.h"
@@ -100,6 +101,7 @@ void touch_task(void *) {
         const int64_t scan_end = esp_timer_get_time();
         const long long scan_us = static_cast<long long>(scan_end - scan_start);
         if (check(scan_result, "scan")) {
+            RuntimeProgress::touch_scans.increment();
             if (scan_failures) {
                 ESP_LOGI(kTag, "Scan recovered after %u failures; scan_us=%lld", scan_failures, scan_us);
                 scan_failures = 0;

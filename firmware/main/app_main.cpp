@@ -1,5 +1,8 @@
 #include <algorithm>
 #include <cstring>
+#include "sdkconfig.h"
+#include "audio/audio_output.h"
+#include "diagnostics/runtime_progress.h"
 #include "board/amoled.h"
 #include "behavior/body_behavior.h"
 #include "display/eye_renderer.h"
@@ -49,6 +52,7 @@ void display_task(void *) {
                               frame + eye * utsushimi::kEyeTilePixels);
             transferred_pixels += utsushimi::kEyeTilePixels;
         }
+        utsushimi::RuntimeProgress::display_completed.increment();
         const int64_t finished = esp_timer_get_time();
         render_sum += rendered - start;
         transfer_sum += finished - rendered;
@@ -105,7 +109,23 @@ extern "C" void app_main(void) {
     utsushimi::EyeState previous;
     uint64_t previous_actions = 0;
     bool holding = false;
+#if CONFIG_UTSUSHIMI_AUDIO_TEST
+    // Initialization and transmission stay outside the body/display/touch tasks.
+    const auto audio_test = [](void *) {
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        auto err = utsushimi::start_audio_output();
+        if (err == ESP_OK) err = utsushimi::play_tone(
+            440.0f, CONFIG_UTSUSHIMI_AUDIO_TEST_DURATION_MS,
+            CONFIG_UTSUSHIMI_AUDIO_TEST_VOLUME_PERMILLE / 1000.0f);
+        if (err != ESP_OK) ESP_LOGE("audio", "Test setup failed: %s", esp_err_to_name(err));
+        vTaskDelete(nullptr);
+    };
+    // Keep initialization below the body loop too.
+    if (xTaskCreate(audio_test, "audio_test", 3072, nullptr, tskIDLE_PRIORITY, nullptr) != pdPASS)
+        ESP_LOGE("audio", "Test task allocation failed; continuing without audio");
+#endif
     for (;;) {
+        utsushimi::RuntimeProgress::body_updates.increment();
         const int64_t now = esp_timer_get_time();
         if (body.advance(static_cast<uint64_t>(now - last_update)))
             ESP_LOGW("body", "Update delayed; discarded elapsed time beyond 100ms");
@@ -145,6 +165,7 @@ extern "C" void app_main(void) {
             eyes.lower_lid = pose.lower_lid;
             // 古いフレームを溜めず最新状態のみ渡す。表示DMAの待機から独立。
             xQueueOverwrite(expressions, &eyes);
+            utsushimi::RuntimeProgress::display_requests.increment();
             previous = pose;
         }
         vTaskDelayUntil(&tick, std::max<TickType_t>(1, pdMS_TO_TICKS(10)));
