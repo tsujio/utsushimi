@@ -1,11 +1,18 @@
 menu "UTSUSHIMI"
+config UTSUSHIMI_AUDIO_INPUT
+    bool "Continuously log INMP441 left-channel RMS"
+    default y
+    help
+        One microphone on GPIO40, L/R tied to GND. Shares GPIO38/39
+        clocks with MAX98357A. Keeps TX and RX running even without tones.
 config UTSUSHIMI_AUDIO_TEST
     bool "Play one short tone after boot (provisional MAX98357A wiring)"
     default n
     help
         Enables I2S output on GPIO38/39/41. Plays 440Hz once,
         five seconds after boot. Every reset repeats the test. Verify wiring
-        and the amplifier SD pull-up before enabling. Normal operation is silent.
+        and the amplifier SD pull-up before enabling. Normal operation sends
+        silence while microphone input is enabled.
 config UTSUSHIMI_AUDIO_TEST_DURATION_MS
     int "Test tone duration (ms)"
     depends on UTSUSHIMI_AUDIO_TEST

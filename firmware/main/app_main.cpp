@@ -109,19 +109,21 @@ extern "C" void app_main(void) {
     utsushimi::EyeState previous;
     uint64_t previous_actions = 0;
     bool holding = false;
-#if CONFIG_UTSUSHIMI_AUDIO_TEST
+#if CONFIG_UTSUSHIMI_AUDIO_TEST || CONFIG_UTSUSHIMI_AUDIO_INPUT
     // Initialization and transmission stay outside the body/display/touch tasks.
-    const auto audio_test = [](void *) {
+    const auto audio_startup = [](void *) {
         vTaskDelay(pdMS_TO_TICKS(5000));
         auto err = utsushimi::start_audio_output();
+#if CONFIG_UTSUSHIMI_AUDIO_TEST
         if (err == ESP_OK) err = utsushimi::play_tone(
             440.0f, CONFIG_UTSUSHIMI_AUDIO_TEST_DURATION_MS,
             CONFIG_UTSUSHIMI_AUDIO_TEST_VOLUME_PERMILLE / 1000.0f);
-        if (err != ESP_OK) ESP_LOGE("audio", "Test setup failed: %s", esp_err_to_name(err));
+#endif
+        if (err != ESP_OK) ESP_LOGE("audio", "Audio setup failed: %s", esp_err_to_name(err));
         vTaskDelete(nullptr);
     };
     // Keep initialization below the body loop too.
-    if (xTaskCreate(audio_test, "audio_test", 3072, nullptr, tskIDLE_PRIORITY, nullptr) != pdPASS)
+    if (xTaskCreate(audio_startup, "audio_startup", 3072, nullptr, tskIDLE_PRIORITY, nullptr) != pdPASS)
         ESP_LOGE("audio", "Test task allocation failed; continuing without audio");
 #endif
     for (;;) {

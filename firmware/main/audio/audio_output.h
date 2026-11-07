@@ -3,7 +3,7 @@
 #include "esp_err.h"
 
 namespace utsushimi {
-// Call start once before submitting requests. Pins are a provisional Rev2.0 wiring.
+// Call start once before submitting requests. Also starts continuous RX when AUDIO_INPUT is enabled.
 esp_err_t start_audio_output();
 // Nonblocking, copies the request. Queue full returns ESP_ERR_TIMEOUT.
 // hz: 20..20000, duration: 1..2000ms, volume: PCM peak fraction 0..0.1.
