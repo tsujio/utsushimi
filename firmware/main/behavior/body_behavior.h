@@ -13,7 +13,7 @@ struct BehaviorParameters {
     bool valid() const;
 };
 struct BodyState { float valence = 0; };
-enum class BodyEvent { touch_started, touch_ended, petting_detected };
+enum class BodyEvent { touch_started, touch_ended, petting_detected, wake_word_detected };
 struct Stimulus { bool holding = false; };
 void update_body(BodyState &state, const Stimulus &stimulus,
                  const BehaviorParameters &params, float dt);
@@ -37,9 +37,14 @@ private:
     double elapsed_ = 0;
 };
 
+struct SearchSettings {
+    uint64_t cooldown_us = 3000000;
+    // Normalized EyeState.gaze_x, clamped to [0, 1]. Provisional geometry.
+    float amplitude = 0.8f;
+};
 class BodyBehavior {
 public:
-    explicit BodyBehavior(RandomSource random, BehaviorParameters params = {});
+    explicit BodyBehavior(RandomSource random, BehaviorParameters params = {}, SearchSettings search = {});
     // 同一タスクから呼ぶ。イベントは現在のモデル時刻で適用する。
     void input(BodyEvent event);
     // 身体・表情・瞬きは内部10ms刻み、1回100msまで。超過時間は捨てる。
@@ -55,6 +60,9 @@ public:
     float blink_openness() const { return movement_.openness(now_us_); }
     // 瞳半径単位の上下変位。負が上。描画座標への変換は呼び出し側で行う。
     float touch_gaze_offset() const;
+    float search_gaze_x() const;
+    bool searching() const { return search_elapsed_us_ < 1000000; }
+    uint64_t search_count() const { return search_count_; }
     uint64_t now_us() const { return now_us_; }
     uint64_t action_count() const { return movement_.action_count(); }
     uint64_t double_count() const { return movement_.double_count(); }
@@ -62,6 +70,10 @@ public:
     uint64_t refractory_until_us() const { return movement_.refractory_until_us(); }
 private:
     void step();
+    RandomSource search_random_;
+    SearchSettings search_settings_;
+    uint64_t search_elapsed_us_ = 1000000, cooldown_remaining_us_ = 0, search_count_ = 0;
+    float search_direction_ = 1, return_start_ = 0;
     BehaviorParameters params_;
     bool used_default_parameters_;
     BodyState state_;

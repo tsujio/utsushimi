@@ -4,6 +4,7 @@
 #include <iterator>
 #include "tone.h"
 #include "input_rms.h"
+#include "wake_word.h"
 #include "diagnostics/runtime_progress.h"
 #include "esp_timer.h"
 #include "esp_attr.h"
@@ -58,6 +59,7 @@ void input_task(void *) {
         const bool invalid_read = err != ESP_OK || bytes == 0 || bytes % (2 * sizeof(int32_t)) != 0;
         if (dropped || invalid_read) {
             meter = {};
+            wake_audio_gap();
             if (now - last_error >= 1000000) {
                 ESP_LOGE("audio_input", "Read failed: %s bytes=%u overflows=%lu", esp_err_to_name(err), unsigned(bytes),
                          static_cast<unsigned long>(dropped));
@@ -68,6 +70,7 @@ void input_task(void *) {
             if (invalid_read) vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
+        submit_wake_audio(pcm, bytes / (2 * sizeof(int32_t)), now);
         for (size_t i = 0; i < bytes / sizeof(int32_t); i += 2) {
             meter.add(pcm[i]); // L/R=GND: left only; right slot is undriven.
             if (meter.count() == kAudioSampleRate / 10) {

@@ -38,12 +38,20 @@ void Expression::advance(float valence, float dt) {
     const double blend = u * u * (3 - 2 * u);
     openness_ = static_cast<float>(start_openness_ + (target - start_openness_) * blend);
 }
-BodyBehavior::BodyBehavior(RandomSource random, BehaviorParameters params)
-    : params_(params.valid() ? params : BehaviorParameters{}), used_default_parameters_(!params.valid()),
-      movement_(random, params_.blink_interval, params_.blink_duration) {}
+BodyBehavior::BodyBehavior(RandomSource random, BehaviorParameters params, SearchSettings search)
+    : search_random_(random), search_settings_(search), params_(params.valid() ? params : BehaviorParameters{}), used_default_parameters_(!params.valid()),
+      movement_(random, params_.blink_interval, params_.blink_duration) {
+    if (!std::isfinite(search_settings_.amplitude)) search_settings_.amplitude = 0.8f;
+    search_settings_.amplitude = std::clamp(search_settings_.amplitude, 0.0f, 1.0f);
+    search_settings_.cooldown_us = std::max<uint64_t>(1000000, search_settings_.cooldown_us);
+}
 void BodyBehavior::input(BodyEvent event) {
     switch (event) {
     case BodyEvent::touch_started:
+        if (searching()) {
+            return_start_ = search_gaze_x();
+            search_elapsed_us_ = 700000; // Yield to touch, smoothly return horizontally.
+        }
         if (!stimulus_.holding && gaze_elapsed_us_ == 3500000) {
             gaze_elapsed_us_ = 0;
             gaze_return_start_ = -0.3f;
@@ -58,12 +66,23 @@ void BodyBehavior::input(BodyEvent event) {
         }
         stimulus_.holding = false;
         break;
+    case BodyEvent::wake_word_detected:
+        if (!stimulus_.holding && gaze_elapsed_us_ == 3500000 && !searching() && !cooldown_remaining_us_) {
+            search_direction_ = search_random_.next(search_random_.context) & 1 ? 1.0f : -1.0f;
+            return_start_ = -search_direction_ * search_settings_.amplitude;
+            search_elapsed_us_ = 0;
+            cooldown_remaining_us_ = search_settings_.cooldown_us;
+            ++search_count_;
+        }
+        break;
     case BodyEvent::petting_detected:
         state_.valence = std::clamp(state_.valence + params_.petting_sensitivity, -1.0f, 1.0f);
         break;
     }
 }
 bool BodyBehavior::advance(uint64_t elapsed) {
+    search_elapsed_us_ += std::min<uint64_t>(elapsed, 1000000 - search_elapsed_us_);
+    cooldown_remaining_us_ -= std::min(elapsed, cooldown_remaining_us_);
     gaze_elapsed_us_ += std::min<uint64_t>(elapsed, 3500000 - gaze_elapsed_us_);
     const bool limited = elapsed > 100000;
     pending_us_ += std::min<uint64_t>(elapsed, 100000);
@@ -81,6 +100,15 @@ float BodyBehavior::touch_gaze_offset() const {
                               : static_cast<float>(t - 3150000) / 350000;
     const float blend = u * u * (3 - 2 * u);
     return t < 150000 ? -0.3f * blend : gaze_return_start_ * (1 - blend);
+}
+float BodyBehavior::search_gaze_x() const {
+    const auto t = search_elapsed_us_;
+    if (t >= 1000000) return 0;
+    const float side = search_direction_ * search_settings_.amplitude;
+    const float u = t < 300000 ? float(t) / 300000 :
+                    t < 700000 ? float(t - 300000) / 400000 : float(t - 700000) / 300000;
+    const float blend = u * u * (3 - 2 * u);
+    return t < 300000 ? side * blend : t < 700000 ? side * (1 - 2 * blend) : return_start_ * (1 - blend);
 }
 void BodyBehavior::step() {
     now_us_ += 10000;

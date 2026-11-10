@@ -2,7 +2,9 @@
 #include <cstring>
 #include "sdkconfig.h"
 #include "audio/audio_output.h"
+#include "audio/wake_word.h"
 #include "diagnostics/runtime_progress.h"
+#include "diagnostics/task_load.h"
 #include "board/amoled.h"
 #include "behavior/body_behavior.h"
 #include "display/eye_renderer.h"
@@ -60,7 +62,8 @@ void display_task(void *) {
         ++frames;
         if (finished - last_report >= 2000000) {
             // アイドル時間を含むFPSではなく、1フレームの処理時間を計測。
-            ESP_LOGI("eyes_perf", "frames=%u render_avg=%lldus transfer_avg=%lldus work_max=%lldus pixels_avg=%llu (budget=%lldus)",
+            ESP_LOGI("eyes_perf", "core=%d window_us=%lld frames=%u render_avg=%lldus transfer_avg=%lldus work_max=%lldus pixels_avg=%llu (budget=%lldus)",
+                     xPortGetCoreID(), static_cast<long long>(finished - last_report),
                      frames, static_cast<long long>(render_sum / frames),
                      static_cast<long long>(transfer_sum / frames), static_cast<long long>(worst),
                      static_cast<unsigned long long>(transferred_pixels / frames),
@@ -73,7 +76,8 @@ void display_task(void *) {
         if (!visible) {
             amoled_show();
             visible = true;
-            ESP_LOGI("utsushimi", "Eyes ready (logical 600x450), randomized blinking active.");
+            ESP_LOGI("utsushimi", "Eyes ready (logical 600x450), randomized blinking active; core=%d priority=%u",
+                     xPortGetCoreID(), unsigned(uxTaskPriorityGet(nullptr)));
         }
         // 目標30Hz。絶対期限により端数・tick丸めの累積を防ぎ、遅れた表示枠は飛ばす。
         const int64_t deadline = utsushimi::next_display_frame_us(frame_epoch, esp_timer_get_time());
@@ -97,13 +101,29 @@ extern "C" void app_main(void) {
     ESP_ERROR_CHECK(expressions ? ESP_OK : ESP_ERR_NO_MEM);
     utsushimi::EyeState eyes{};
     xQueueOverwrite(expressions, &eyes);
-    ESP_ERROR_CHECK(xTaskCreate(display_task, "eyes_display", 4096, nullptr, 4, nullptr) == pdPASS
+    // Keep sustained rendering off the recognition core; retain task priority.
+    ESP_ERROR_CHECK(xTaskCreatePinnedToCore(display_task, "eyes_display", 4096, nullptr, 4, nullptr, 0) == pdPASS
                         ? ESP_OK : ESP_ERR_NO_MEM);
     utsushimi::start_touch_diagnostics();
     // 5つの調整項目はここで上書きする。単位は秒。
     const utsushimi::BehaviorParameters parameters{};
     ESP_ERROR_CHECK(parameters.valid() ? ESP_OK : ESP_ERR_INVALID_ARG);
-    utsushimi::BodyBehavior body({[](void *) { return esp_random(); }, nullptr}, parameters);
+    utsushimi::SearchSettings search_settings;
+#if CONFIG_UTSUSHIMI_WAKE_WORD
+    search_settings.cooldown_us = uint64_t(CONFIG_UTSUSHIMI_WAKE_COOLDOWN_MS) * 1000;
+#endif
+    utsushimi::BodyBehavior body({[](void *) { return esp_random(); }, nullptr}, parameters, search_settings);
+    const auto wake_err = utsushimi::start_wake_word();
+    if (wake_err != ESP_OK) ESP_LOGE("wake_word", "Startup failed: %s", esp_err_to_name(wake_err));
+#if CONFIG_UTSUSHIMI_WAKE_WORD
+#if CONFIG_UTSUSHIMI_WAKE_SEARCH_DISABLED
+    ESP_LOGW("body", "Wake search gaze: disabled (diagnostic); recognition remains active");
+#else
+    ESP_LOGI("body", "Wake search gaze: enabled");
+#endif
+#endif
+    bool previous_searching = false;
+    uint64_t previous_search_count = 0;
     int64_t last_update = esp_timer_get_time();
     TickType_t tick = xTaskGetTickCount();
     utsushimi::EyeState previous;
@@ -132,6 +152,11 @@ extern "C" void app_main(void) {
         if (body.advance(static_cast<uint64_t>(now - last_update)))
             ESP_LOGW("body", "Update delayed; discarded elapsed time beyond 100ms");
         last_update = now;
+        // Log completion before accepting another wake in the same iteration.
+        if (previous_searching && !body.searching()) {
+            ESP_LOGI("body", "Search end time_us=%lld", (long long)now);
+            previous_searching = false;
+        }
         if (body.action_count() != previous_actions) {
             ESP_LOGI("body", "actions=%llu doubles=%llu model_start_us=%llu valence=%.3f",
                      static_cast<unsigned long long>(body.action_count()),
@@ -155,12 +180,32 @@ extern "C" void app_main(void) {
                      petting.direction == utsushimi::PettingDirection::a_to_c ? "A->B->C" : "C->B->A",
                      static_cast<double>(body.state().valence));
         }
+        utsushimi::WakeWordEvent wake;
+        if (utsushimi::take_wake_word_event(wake)) {
+            // No stale delayed reaction after a stalled body loop.
+            const auto received_at = esp_timer_get_time();
+            if (received_at >= wake.detected_us && received_at - wake.detected_us <= 500000) {
+#if CONFIG_UTSUSHIMI_WAKE_SEARCH_DISABLED
+                ESP_LOGI("body", "Search suppressed (diagnostic) audio_end_us=%lld detected_us=%lld received_us=%lld",
+                         (long long)wake.audio_end_us, (long long)wake.detected_us, (long long)received_at);
+#else
+                body.input(utsushimi::BodyEvent::wake_word_detected);
+#endif
+            }
+        }
+        if (body.search_count() != previous_search_count) {
+            ESP_LOGI("body", "Search start time_us=%lld", (long long)now);
+            previous_search_count = body.search_count();
+        }
+        previous_searching = body.searching();
         utsushimi::EyeState pose = eyes;
+        pose.gaze_x = body.search_gaze_x();
         pose.gaze_y = body.touch_gaze_offset() * utsushimi::kEyeRadius * pose.pupil_size / utsushimi::kGazePixels;
         pose.openness = body.blink_openness();
         pose.upper_lid = pose.lower_lid = 1 - body.expression_openness();
         if (pose.openness != previous.openness || pose.upper_lid != previous.upper_lid ||
-            pose.lower_lid != previous.lower_lid || pose.gaze_y != previous.gaze_y) {
+            pose.lower_lid != previous.lower_lid || pose.gaze_y != previous.gaze_y || pose.gaze_x != previous.gaze_x) {
+            eyes.gaze_x = pose.gaze_x;
             eyes.gaze_y = pose.gaze_y;
             eyes.openness = pose.openness;
             eyes.upper_lid = pose.upper_lid;
@@ -170,6 +215,7 @@ extern "C" void app_main(void) {
             utsushimi::RuntimeProgress::display_requests.increment();
             previous = pose;
         }
+        utsushimi::report_task_load(body.searching());
         vTaskDelayUntil(&tick, std::max<TickType_t>(1, pdMS_TO_TICKS(10)));
     }
 }

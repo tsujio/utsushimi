@@ -5,6 +5,33 @@ config UTSUSHIMI_AUDIO_INPUT
     help
         One microphone on GPIO40, L/R tied to GND. Shares GPIO38/39
         clocks with MAX98357A. Keeps TX and RX running even without tones.
+config UTSUSHIMI_WAKE_WORD
+    bool "Recognize Iris offline with WakeNet10"
+    depends on UTSUSHIMI_AUDIO_INPUT
+    default y
+    select SR_WN_WN10_JA_AIRISU
+config UTSUSHIMI_WAKE_SEARCH_DISABLED
+    bool "Disable wake-word search gaze (diagnostic only)"
+    depends on UTSUSHIMI_WAKE_WORD
+    default n
+    help
+        Keep recognition, RMS and normal body reactions running, but consume
+        wake events without starting search gaze. Use for paired overflow tests.
+config UTSUSHIMI_TASK_LOAD_DIAGNOSTICS
+    bool "Measure task CPU load and affinity (diagnostic only)"
+    depends on UTSUSHIMI_WAKE_WORD
+    default n
+    select FREERTOS_GENERATE_RUN_TIME_STATS
+    help
+        Sample named long-lived tasks once per second without stack scans.
+        Log search windows and a baseline about every ten seconds. Requires
+        ESP timer as the FreeRTOS run-time statistics clock. Adds measurement
+        and logging overhead; use the same setting for paired comparisons.
+config UTSUSHIMI_WAKE_COOLDOWN_MS
+    int "Wake reaction cooldown (ms)"
+    depends on UTSUSHIMI_WAKE_WORD
+    range 1000 60000
+    default 3000
 config UTSUSHIMI_AUDIO_TEST
     bool "Play one short tone after boot (provisional MAX98357A wiring)"
     default n
