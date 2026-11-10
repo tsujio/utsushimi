@@ -18,20 +18,56 @@
 
 UI部品は不要なので、LVGLを導入せずRGB565を直接生成しています。画像の切り替えではなくパラメータで描画します。
 
-## リポジトリ内の開発ツールを使う場合
+## 新規環境の構築
 
-この作業環境には `build/host-tools`、`build/utsushimi-esp-idf`（v5.5.6）、`build/utsushimi-idf-tools` を導入済みです。次のラッパーでライブラリ検索パス・ホストC++のsysroot・IDF環境を設定してmakeを実行できます。
+以下はUbuntu / Debian（WSL2内のLinuxを含む）向けの手順です。ESP-IDF **v5.5.6** でビルドを確認しています。別OSの依存パッケージは[同バージョンの公式導入手順](https://docs.espressif.com/projects/esp-idf/en/v5.5.6/esp32s3/get-started/linux-macos-setup.html)を参照してください。プロジェクトとESP-IDFは空白を含まないパスへ配置します。
+
+### 1. OSの開発ツール
 
 ```bash
-bash bin/dev.sh test
-bash bin/dev.sh build
+sudo apt-get update
+sudo apt-get install build-essential git wget flex bison gperf \
+    python3 python3-pip python3-venv cmake ninja-build ccache \
+    libffi-dev libssl-dev dfu-util libusb-1.0-0
 ```
 
-`menuconfig`・`install PORT=...`・`monitor PORT=...` も同じラッパーへ渡せます。明示した環境変数 `CXX`・`IDF_PATH`・`IDF_TOOLS_PATH` は優先します。このスクリプトはツールのインストーラーではなく、`build/` のツール類はGit管理外です。別環境でツールを通常の場所へ導入している場合は以下のmake手順を使用します。
+`build-essential` に含まれるGNU MakeとC++17対応の `g++` をホストテストに使用します。ホストテストだけならESP-IDFや実機は不要です。`build/host-tools` は特殊な作業環境向けの補助であり、通常の新規環境で用意する必要はありません。GCC 15も必須ではありません。
+
+### 2. ESP-IDFとESP32-S3用ツール
+
+以下は `~/esp/esp-idf` がまだ存在しない環境で実行します。
+
+```bash
+mkdir -p ~/esp
+cd ~/esp
+git clone --branch v5.5.6 --recursive https://github.com/espressif/esp-idf.git
+cd esp-idf
+./install.sh esp32s3
+```
+
+ESP-IDF本体は `~/esp/esp-idf`、クロスコンパイラ・Python仮想環境などは既定で `~/.espressif` に配置されます。`g++` はホストテスト用、ESP-IDFが導入するクロスコンパイラはファームウェア用です。インストールと初回ビルドにはネット接続が必要です。Makefileが `export.sh` を読み込むため、makeを使う際の手動の `source` は不要です。
+
+導入先を変える場合は、ビルド時に `make build IDF_PATH=/path/to/esp-idf` を指定します。ツールの導入先も変える場合は、`install.sh` の実行前に `export IDF_TOOLS_PATH=/path/to/idf-tools` を設定し、makeの実行時にも同じ値を指定してください。
+
+### 3. プロジェクトの確認
+
+UTSUSHIMIを取得したリポジトリのルートへ戻り、実行します。
+
+```bash
+make help
+make test
+make build
+```
+
+これらはホスト側の確認とビルドです。実機への書き込み・ログ表示は[次の手順](#makefileでのビルドと書き込み)を参照してください。WSLのUSB接続は[接続手順](#設定と実行)を参照してください。
+
+この導入手順は公式資料と既存のビルド環境に基づきます。空のUbuntu / Debian環境での一連の再現確認は未実施です。
 
 ## Makefileでのビルドと書き込み
 
-リポジトリのルートから実行します。ESP-IDF v5.5.6を使用し、既定では `~/esp/esp-idf/export.sh` を自動的に読み込みます。
+リポジトリのルートから実行します。ESP-IDF v5.5.6を使用します。Makefileは `build/utsushimi-esp-idf/export.sh` があれば使用し、なければ `~/esp/esp-idf/export.sh` を読み込みます。ローカルIDFを自動選択した場合、`IDF_TOOLS_PATH` の既定値は `build/utsushimi-idf-tools` です。
+
+`build/host-tools` に導入済みのツールがあれば検索パスを設定し、`g++` が見つからない場合は同ディレクトリのGCC 15とsysrootを使用します。環境変数またはmakeの引数で指定した `CXX`・`IDF_PATH`・`IDF_TOOLS_PATH` を優先します。ツールのインストールは行わず、`build/` のツール類はGit管理外です。
 
 ```bash
 make build
@@ -329,7 +365,7 @@ g++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/main \
 
 ### 設定と実行
 
-リポジトリルートでESP-IDF v5.5.6を使用します。ESP-IDFの場所が既定の `~/esp/esp-idf` と異なる場合は、各makeコマンドへ `IDF_PATH=/path/to/esp-idf` を指定します。ツールを独自の場所に導入している場合は `IDF_TOOLS_PATH` もその場所へ設定してください。WSLでポートが使えない場合は、対話可能なWSLターミナルで `bash bin/connect-esp32.sh` を実行し、表示されたポート名を使います。
+リポジトリルートでESP-IDF v5.5.6を使用します。ESP-IDFの場所を明示する場合は、各makeコマンドへ `IDF_PATH=/path/to/esp-idf` を指定します。ツールを独自の場所に導入している場合は `IDF_TOOLS_PATH` もその場所へ設定してください。WSLでポートが使えない場合は、対話可能なWSLターミナルで `bash bin/connect-esp32.sh` を実行し、表示されたポート名を使います。
 
 ```bash
 make menuconfig
@@ -403,7 +439,7 @@ Cのrawは送信前約48,020、送信中約47,800〜47,900で、保持判定解�
 
 入力タスクのスタックは8192バイト、送受信のPCM作業領域は各1920バイトのタスク専有の静的領域です。浮動小数点ログを含む入力処理の余裕を確認するため、読取りループで約10秒ごとに `Stack minimum free: ... bytes` を出します。これはタスク開始からの最小空き量であり、減少だけでは継続的なメモリ消費やリークを意味しません。
 
-**ソフトウェア検証：** `bash bin/dev.sh test` で24bit復号・下位bit無視・DC除去・既知サイン振幅・最大振幅と既存の回帰試験が成功しています。ESP-IDF v5.5.6で入力のみ（電子音試験無効）、入力と電子音試験の併用、入力無効のTXのみ（進捗診断有効）の3構成のビルドが成功しています。構成別の検証には独立したSDKCONFIG・ビルドディレクトリを使用し、実機確認用の `firmware/sdkconfig` は維持しています。
+**ソフトウェア検証：** `make test` で24bit復号・下位bit無視・DC除去・既知サイン振幅・最大振幅と既存の回帰試験が成功しています。ESP-IDF v5.5.6で入力のみ（電子音試験無効）、入力と電子音試験の併用、入力無効のTXのみ（進捗診断有効）の3構成のビルドが成功しています。構成別の検証には独立したSDKCONFIG・ビルドディレクトリを使用し、実機確認用の `firmware/sdkconfig` は維持しています。
 
 **所有者による基本動作確認：** 静かな区間より発声時のRMSが増え、発声終了後に戻ること、3回の拍手に対応するピーク、起動時の電子音の出音、瞬き・接触時の上目・撫での笑顔を確認しています。確認した電子音設定は440Hz・2000ms・振幅50/1000で、進捗診断は無効です。
 
@@ -450,8 +486,6 @@ make install PORT=/dev/ttyACM0
 make monitor PORT=/dev/ttyACM0
 ```
 
-リポジトリ内ツールを使う環境では、各 `make ...` を `bash bin/dev.sh ...` に置き換えます。`bin/dev.sh` は既存の開発用ラッパーで、ツールやログをGitへ含めるものではありません。
-
 `partitions.csv` はfactory 6MiB（0x10000）・model 2MiB（0x610000）です。NVS・PHYの位置は維持します。ESP-SRのCMakeがモデルを `firmware/build/srmodels/srmodels.bin` に生成し、通常の `make install` / `idf.py flash` でアプリ・パーティションとともに配置します。`app-flash` だけではモデルを配置できません。`firmware/build/flash_args` に `0x610000 srmodels/srmodels.bin` があることを確認します。Flash用モデルの生成サイズは391,867バイトです。
 
 認識有効のまま旧パーティションを使用するとCMakeが警告します。設定を移行してモデルを含めて書き込んでください。未配置・ヘッダー不整合・モデル/PCM契約不一致はログへ出し、認識を行わず他機能を継続します。起動時の `Loaded wn10_ja_airisu mode=90 rate=16000 channels=1 chunk=512` を確認します。これは認識精度や長時間安定性の証明ではありません。
@@ -481,10 +515,10 @@ make monitor PORT=/dev/ttyACM0
 
 ```bash
 mkdir -p logs
-bash bin/dev.sh monitor PORT=/dev/ttyACM0 2>&1 | tee "logs/step23-$(date +%Y%m%d-%H%M%S).log"
+make monitor PORT=/dev/ttyACM0 2>&1 | tee "logs/step23-$(date +%Y%m%d-%H%M%S).log"
 ```
 
-monitor開始後にRESETすると起動から記録できます。終了はCtrl+]です。通常のIDF環境では `bash bin/dev.sh monitor` を `make monitor` に置き換えます。生ログはGit対象外です。診断は認識成功・探索開始終了、最大毎秒1回の欠落/エラー、約10秒ごとのHealthを中心にし、既存のRMS・描画・タッチログも残します。
+monitor開始後にRESETすると起動から記録できます。終了はCtrl+]です。生ログはGit対象外です。診断は認識成功・探索開始終了、最大毎秒1回の欠落/エラー、約10秒ごとのHealthを中心にし、既存のRMS・描画・タッチログも残します。
 
 ### 探索だけを停止する比較診断
 
